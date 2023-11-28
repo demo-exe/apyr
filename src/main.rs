@@ -13,6 +13,8 @@ use ratatui::{
     Frame,
 };
 
+mod reader;
+
 fn startup() -> Result<()> {
     enable_raw_mode()?;
     execute!(std::io::stderr(), EnterAlternateScreen)?;
@@ -25,10 +27,16 @@ fn shutdown() -> Result<()> {
     Ok(())
 }
 
+struct Point {
+    x: u32,
+    y: u32,
+}
+
 // App state
 struct App {
-    counter: i64,
     should_quit: bool,
+    lines: Vec<String>,
+    cursor: Point,
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -39,8 +47,8 @@ fn update(app: &mut App) -> Result<()> {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 match key.code {
-                    Char('j') => app.counter += 1,
-                    Char('k') => app.counter -= 1,
+                    Char('j') => app.cursor.y = app.cursor.y.checked_add(1).unwrap_or(app.cursor.y),
+                    Char('k') => app.cursor.y = app.cursor.y.checked_sub(1).unwrap_or(app.cursor.y),
                     Char('q') => app.should_quit = true,
                     _ => {}
                 }
@@ -56,18 +64,19 @@ fn run() -> Result<()> {
 
     // application state
     let mut app = App {
-        counter: 0,
         should_quit: false,
+        lines: reader::read_file(),
+        cursor: Point { x: 0, y: 0 },
     };
 
     loop {
-        // application update
-        update(&mut app)?;
-
         // application render
         t.draw(|f| {
             ui(&app, f);
         })?;
+
+        // application update
+        update(&mut app)?;
 
         // application exit
         if app.should_quit {
@@ -92,6 +101,33 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn cut_text_window(app: &App, rect: Rect) -> Vec<String> {
+    let mut text_lines = Vec::new();
+
+    if app.cursor.y >= app.lines.len() as u32 {
+        return text_lines;
+    }
+
+    let mut fitting = app.lines.len() - app.cursor.y as usize;
+    if fitting > rect.height as usize {
+        fitting = rect.height as usize;
+    }
+
+    for i in 0..fitting {
+        let line = &app.lines[(app.cursor.y + i as u32) as usize];
+        text_lines.push(line.clone());
+    }
+    text_lines
+}
+
+fn color_lines(lines: Vec<String>) -> String {
+    let mut colored_lines = String::new();
+    for line in lines {
+        colored_lines.push_str(&format!("{}\n", line));
+    }
+    colored_lines
+}
+
 fn ui(_app: &App, frame: &mut Frame) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -114,8 +150,13 @@ fn ui(_app: &App, frame: &mut Frame) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
         .split(main_layout[1]);
+    let block = Block::default().borders(Borders::ALL).title("Log");
     frame.render_widget(
-        Block::default().borders(Borders::ALL).title("Log"),
+        Paragraph::new(color_lines(cut_text_window(
+            &_app,
+            block.inner(inner_layout[0]),
+        )))
+        .block(block),
         inner_layout[0],
     );
     frame.render_widget(

@@ -6,6 +6,6 @@
   - fuzzy
 - search highlighting
 - terminal interface
-- focus on performance - no UI hangs
+- lightweight/focus on performance
 - configurable navigation with vim-like defaults
 - handling of large (2GB+) log files
