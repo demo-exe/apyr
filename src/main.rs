@@ -12,6 +12,7 @@ use ratatui::{
     prelude::{CrosstermBackend, Terminal},
     Frame,
 };
+use regex::Regex;
 
 mod reader;
 
@@ -37,6 +38,7 @@ struct App {
     should_quit: bool,
     lines: Vec<String>,
     cursor: Point,
+    re: Regex,
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,6 +51,8 @@ fn update(app: &mut App) -> Result<()> {
                 match key.code {
                     Char('j') => app.cursor.y = app.cursor.y.checked_add(1).unwrap_or(app.cursor.y),
                     Char('k') => app.cursor.y = app.cursor.y.checked_sub(1).unwrap_or(app.cursor.y),
+                    Char('u') => app.cursor.y = app.cursor.y.checked_sub(5).unwrap_or(app.cursor.y),
+                    Char('d') => app.cursor.y = app.cursor.y.checked_add(5).unwrap_or(app.cursor.y),
                     Char('q') => app.should_quit = true,
                     _ => {}
                 }
@@ -67,6 +71,7 @@ fn run() -> Result<()> {
         should_quit: false,
         lines: reader::read_file(),
         cursor: Point { x: 0, y: 0 },
+        re: Regex::new(r"App").unwrap(),
     };
 
     loop {
@@ -120,15 +125,30 @@ fn cut_text_window(app: &App, rect: Rect) -> Vec<String> {
     text_lines
 }
 
-fn color_lines(lines: Vec<String>) -> String {
-    let mut colored_lines = String::new();
+fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
+    let mut colored_lines = Vec::new();
+    let style = Style::default().fg(Color::Red);
+
     for line in lines {
-        colored_lines.push_str(&format!("{}\n", line));
+        let mat = app.re.find(&line);
+        if let Some(mat) = mat {
+            let mut styledline: Vec<Span> = Vec::new();
+            let split = line.split_at(mat.start());
+            let end = split.1.split_at(mat.end() - mat.start());
+
+            styledline.push(Span::raw(split.0.to_string()));
+            styledline.push(Span::styled(end.0.to_string(), style));
+            styledline.push(Span::raw(end.1.to_string()));
+
+            colored_lines.push(Line::from(styledline));
+        } else {
+            colored_lines.push(Line::raw(line));
+        }
     }
-    colored_lines
+    Text::from(colored_lines)
 }
 
-fn ui(_app: &App, frame: &mut Frame) {
+fn ui(app: &App, frame: &mut Frame) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -152,10 +172,10 @@ fn ui(_app: &App, frame: &mut Frame) {
         .split(main_layout[1]);
     let block = Block::default().borders(Borders::ALL).title("Log");
     frame.render_widget(
-        Paragraph::new(color_lines(cut_text_window(
-            &_app,
-            block.inner(inner_layout[0]),
-        )))
+        Paragraph::new(color_lines(
+            &app,
+            cut_text_window(&app, block.inner(inner_layout[0])),
+        ))
         .block(block),
         inner_layout[0],
     );
