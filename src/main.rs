@@ -49,10 +49,10 @@ fn update(app: &mut App) -> Result<()> {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 match key.code {
-                    Char('j') => app.cursor.y = app.cursor.y.checked_add(1).unwrap_or(app.cursor.y),
-                    Char('k') => app.cursor.y = app.cursor.y.checked_sub(1).unwrap_or(app.cursor.y),
-                    Char('u') => app.cursor.y = app.cursor.y.checked_sub(5).unwrap_or(app.cursor.y),
-                    Char('d') => app.cursor.y = app.cursor.y.checked_add(5).unwrap_or(app.cursor.y),
+                    Char('j') => app.cursor.y = app.cursor.y.saturating_add(1),
+                    Char('k') => app.cursor.y = app.cursor.y.saturating_sub(1),
+                    Char('u') => app.cursor.y = app.cursor.y.saturating_sub(5),
+                    Char('d') => app.cursor.y = app.cursor.y.saturating_add(5),
                     Char('q') => app.should_quit = true,
                     _ => {}
                 }
@@ -130,16 +130,22 @@ fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
     let style = Style::default().fg(Color::Red);
 
     for line in lines {
-        let mat = app.re.find(&line);
-        if let Some(mat) = mat {
+        let mat = app.re.find_iter(&line).collect::<Vec<_>>();
+        if mat.len() > 0 {
             let mut styledline: Vec<Span> = Vec::new();
-            let split = line.split_at(mat.start());
-            let end = split.1.split_at(mat.end() - mat.start());
 
-            styledline.push(Span::raw(split.0.to_string()));
-            styledline.push(Span::styled(end.0.to_string(), style));
-            styledline.push(Span::raw(end.1.to_string()));
-
+            let mut printed: usize = 0;
+            for mat in mat {
+                if mat.start() > printed {
+                    styledline.push(Span::raw((&line[printed..mat.start()]).to_string()));
+                }
+                let colored = mat.as_str().to_string();
+                styledline.push(Span::styled(colored, style));
+                printed = mat.end();
+            }
+            if printed < line.len() {
+                styledline.push(Span::raw((&line[printed..]).to_string()));
+            }
             colored_lines.push(Line::from(styledline));
         } else {
             colored_lines.push(Line::raw(line));
