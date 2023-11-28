@@ -1,11 +1,11 @@
 ## Requirements
 
 - quick search in logs
- + fuzzy
- + regex
- + simple
-- configurable navigation with vim-like defaults
-- handling of large (2GB+) log files
-- focus on performance - no UI hangs
+  - simple
+  - regex
+  - fuzzy
 - search highlighting
 - terminal interface
+- focus on performance - no UI hangs
+- configurable navigation with vim-like defaults
+- handling of large (2GB+) log files
