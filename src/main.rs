@@ -7,6 +7,7 @@ use crossterm::{
     event::{Event::Key, KeyCode::Char},
     execute,
 };
+use ratatui::widgets::block::Title;
 use ratatui::{prelude::*, widgets::*};
 use ratatui::{
     prelude::{CrosstermBackend, Terminal},
@@ -157,36 +158,39 @@ fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
 fn ui(app: &App, frame: &mut Frame) {
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Percentage(75), Constraint::Min(5)])
         .split(frame.size());
-    frame.render_widget(
-        Block::new().title(format!("Apyr v{VERSION}")),
-        main_layout[0],
-    );
-    frame.render_widget(
-        Block::new().borders(Borders::TOP).title("Status Bar"),
-        main_layout[2],
-    );
 
-    let inner_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
-        .split(main_layout[1]);
-    let block = Block::default().borders(Borders::ALL).title("Log");
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .title(Title::from(" Log {stdin} ").alignment(Alignment::Center))
+        .title(Title::from(format!(" Apyr v{VERSION}")).alignment(Alignment::Right));
     frame.render_widget(
         Paragraph::new(color_lines(
             &app,
-            cut_text_window(&app, block.inner(inner_layout[0])),
+            cut_text_window(&app, block.inner(main_layout[0])),
         ))
         .block(block),
-        inner_layout[0],
+        main_layout[0],
     );
+
+    let sub_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(2), Constraint::Min(3)])
+        .split(main_layout[1]);
+
     frame.render_widget(
-        Block::default().borders(Borders::ALL).title("Matches"),
-        inner_layout[1],
+        Block::default()
+            .borders(Borders::TOP)
+            // .style(Style::default().fg(Color::Red))
+            .title(Title::from(" Search  ").alignment(Alignment::Center)),
+        sub_layout[0],
+    );
+
+    frame.render_widget(
+        Block::new()
+            .borders(Borders::TOP)
+            .title(Title::from(" Matches ").alignment(Alignment::Center)),
+        sub_layout[1],
     );
 }
