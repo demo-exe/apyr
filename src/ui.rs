@@ -28,7 +28,17 @@ fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
     let style = Style::default().fg(Color::Red);
 
     for line in lines {
-        let mat = app.re.find_iter(&line).collect::<Vec<_>>();
+        if app.re.is_none() {
+            colored_lines.push(Line::raw(line));
+            continue;
+        }
+        let mat = app
+            .re
+            .as_ref()
+            .unwrap()
+            .find_iter(&line)
+            .collect::<Vec<_>>();
+
         if mat.len() > 0 {
             let mut styledline: Vec<Span> = Vec::new();
 

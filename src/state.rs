@@ -3,6 +3,8 @@ use regex::Regex;
 
 use crate::reader;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub struct Point {
     pub x: u32,
     pub y: u32,
@@ -20,7 +22,7 @@ pub struct App {
     pub should_quit: bool,
     pub lines: Vec<String>,
     pub cursor: Point,
-    pub re: Regex,
+    pub re: Option<Regex>,
     pub selected_panel: Panel,
     pub last_panel: Panel,
     pub search_query: String,
@@ -32,7 +34,7 @@ impl Default for App {
             should_quit: false,
             lines: reader::read_file(),
             cursor: Point { x: 0, y: 0 },
-            re: Regex::new(r"App").unwrap(),
+            re: None,
             selected_panel: Panel::Search,
             last_panel: Panel::Log,
             search_query: String::new(),
@@ -40,15 +42,19 @@ impl Default for App {
     }
 }
 
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+fn recompile_regex(app: &mut App) {
+    app.re = Regex::new(&app.search_query).ok();
+}
 
 pub fn process_key_event(key: KeyEvent, app: &mut App) {
     if app.selected_panel == Panel::Search {
         // TODO: vi mode ? how to best
         if let KeyCode::Char(c) = key.code {
             app.search_query.push(c);
+            recompile_regex(app);
         } else if key.code == KeyCode::Backspace {
             app.search_query.pop();
+            recompile_regex(app);
         } else if key.code == KeyCode::Esc {
             app.selected_panel = app.last_panel;
         }
@@ -59,6 +65,7 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
             KeyCode::Char('u') => app.cursor.y = app.cursor.y.saturating_sub(5),
             KeyCode::Char('d') => app.cursor.y = app.cursor.y.saturating_add(5),
             KeyCode::Char('q') => app.should_quit = true,
+            KeyCode::Char('c') => app.search_query.clear(),
             KeyCode::Tab => {
                 app.selected_panel = match app.selected_panel {
                     Panel::Log => Panel::Matches,
