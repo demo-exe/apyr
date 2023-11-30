@@ -23,43 +23,58 @@ fn cut_text_window(app: &App, rect: Rect) -> Vec<String> {
     text_lines
 }
 
-fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
-    let mut colored_lines = Vec::new();
+fn color_line<'a>(app: &App, line: String) -> Line<'a> {
+    if app.re.is_none() {
+        return Line::raw(line);
+    }
+    let mat = app
+        .re
+        .as_ref()
+        .unwrap()
+        .find_iter(&line)
+        .collect::<Vec<_>>();
+
     let style = Style::default().fg(Color::Red);
 
+    let colored_line = if mat.len() > 0 {
+        let mut styledline: Vec<Span> = Vec::new();
+
+        let mut printed: usize = 0;
+        for mat in mat {
+            if mat.start() > printed {
+                styledline.push(Span::raw((&line[printed..mat.start()]).to_string()));
+            }
+            let colored = mat.as_str().to_string();
+            styledline.push(Span::styled(colored, style));
+            printed = mat.end();
+        }
+        if printed < line.len() {
+            styledline.push(Span::raw((&line[printed..]).to_string()));
+        }
+        Line::from(styledline)
+    } else {
+        Line::raw(line)
+    };
+
+    colored_line
+}
+
+fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
+    let mut colored_lines = Vec::new();
+
     for line in lines {
-        if app.re.is_none() {
-            colored_lines.push(Line::raw(line));
-            continue;
-        }
-        let mat = app
-            .re
-            .as_ref()
-            .unwrap()
-            .find_iter(&line)
-            .collect::<Vec<_>>();
-
-        if mat.len() > 0 {
-            let mut styledline: Vec<Span> = Vec::new();
-
-            let mut printed: usize = 0;
-            for mat in mat {
-                if mat.start() > printed {
-                    styledline.push(Span::raw((&line[printed..mat.start()]).to_string()));
-                }
-                let colored = mat.as_str().to_string();
-                styledline.push(Span::styled(colored, style));
-                printed = mat.end();
-            }
-            if printed < line.len() {
-                styledline.push(Span::raw((&line[printed..]).to_string()));
-            }
-            colored_lines.push(Line::from(styledline));
-        } else {
-            colored_lines.push(Line::raw(line));
-        }
+        colored_lines.push(color_line(&app, line));
     }
     Text::from(colored_lines)
+}
+
+pub fn render_matches(app: &App) -> List {
+    let mut items = Vec::new();
+    for i in &app.matches {
+        let colored_line = color_line(&app, app.lines[*i].clone());
+        items.push(ListItem::new(colored_line));
+    }
+    List::new(items)
 }
 
 pub fn render_ui(app: &App, frame: &mut Frame) {
@@ -115,5 +130,7 @@ pub fn render_ui(app: &App, frame: &mut Frame) {
         block = block.border_style(highlight_style);
     }
 
-    frame.render_widget(block, sub_layout[1]);
+    let matches = render_matches(&app);
+
+    frame.render_widget(matches.block(block), sub_layout[1]);
 }
