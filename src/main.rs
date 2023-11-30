@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event;
+use crossterm::event::{self, KeyCode};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
@@ -34,12 +34,22 @@ struct Point {
     y: u32,
 }
 
+#[derive(PartialEq, Clone, Copy)]
+enum Panel {
+    Log,
+    Search,
+    Matches,
+}
+
 // App state
 struct App {
     should_quit: bool,
     lines: Vec<String>,
     cursor: Point,
     re: Regex,
+    selected_panel: Panel,
+    last_panel: Panel,
+    search_query: String,
 }
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,13 +59,37 @@ fn update(app: &mut App) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(250))? {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
-                match key.code {
-                    Char('j') => app.cursor.y = app.cursor.y.saturating_add(1),
-                    Char('k') => app.cursor.y = app.cursor.y.saturating_sub(1),
-                    Char('u') => app.cursor.y = app.cursor.y.saturating_sub(5),
-                    Char('d') => app.cursor.y = app.cursor.y.saturating_add(5),
-                    Char('q') => app.should_quit = true,
-                    _ => {}
+                if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
+                    app.should_quit = true;
+                } else if app.selected_panel == Panel::Search {
+                    // TODO: vi mode ? how to best
+                    if let Char(c) = key.code {
+                        app.search_query.push(c);
+                    } else if key.code == KeyCode::Backspace {
+                        app.search_query.pop();
+                    } else if key.code == KeyCode::Esc {
+                        app.selected_panel = app.last_panel;
+                    }
+                } else {
+                    match key.code {
+                        Char('j') => app.cursor.y = app.cursor.y.saturating_add(1),
+                        Char('k') => app.cursor.y = app.cursor.y.saturating_sub(1),
+                        Char('u') => app.cursor.y = app.cursor.y.saturating_sub(5),
+                        Char('d') => app.cursor.y = app.cursor.y.saturating_add(5),
+                        Char('q') => app.should_quit = true,
+                        KeyCode::Tab => {
+                            app.selected_panel = match app.selected_panel {
+                                Panel::Log => Panel::Matches,
+                                Panel::Matches => Panel::Log,
+                                _ => app.selected_panel,
+                            }
+                        }
+                        Char('i') => {
+                            app.last_panel = app.selected_panel;
+                            app.selected_panel = Panel::Search;
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -73,6 +107,9 @@ fn run() -> Result<()> {
         lines: reader::read_file(),
         cursor: Point { x: 0, y: 0 },
         re: Regex::new(r"App").unwrap(),
+        selected_panel: Panel::Search,
+        last_panel: Panel::Log,
+        search_query: String::new(),
     };
 
     loop {
@@ -156,15 +193,21 @@ fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
 }
 
 fn ui(app: &App, frame: &mut Frame) {
+    let highlight_style = Style::default().bold().fg(Color::White);
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(75), Constraint::Min(5)])
         .split(frame.size());
 
-    let block = Block::default()
+    let mut block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Log {stdin} ").alignment(Alignment::Center))
         .title(Title::from(format!(" Apyr v{VERSION}")).alignment(Alignment::Right));
+
+    if app.selected_panel == Panel::Log {
+        block = block.border_style(highlight_style);
+    }
+
     frame.render_widget(
         Paragraph::new(color_lines(
             &app,
@@ -179,18 +222,25 @@ fn ui(app: &App, frame: &mut Frame) {
         .constraints([Constraint::Length(2), Constraint::Min(3)])
         .split(main_layout[1]);
 
+    let mut block = Block::default()
+        .borders(Borders::TOP)
+        // .style(Style::default().fg(Color::Red))
+        .title(Title::from(" Search  ").alignment(Alignment::Center));
+    if app.selected_panel == Panel::Search {
+        block = block.border_style(highlight_style);
+    }
     frame.render_widget(
-        Block::default()
-            .borders(Borders::TOP)
-            // .style(Style::default().fg(Color::Red))
-            .title(Title::from(" Search  ").alignment(Alignment::Center)),
+        Paragraph::new(app.search_query.clone()).block(block),
         sub_layout[0],
     );
 
-    frame.render_widget(
-        Block::new()
-            .borders(Borders::TOP)
-            .title(Title::from(" Matches ").alignment(Alignment::Center)),
-        sub_layout[1],
-    );
+    let mut block = Block::new()
+        .borders(Borders::TOP)
+        .title(Title::from(" Matches ").alignment(Alignment::Center));
+
+    if app.selected_panel == Panel::Matches {
+        block = block.border_style(highlight_style);
+    }
+
+    frame.render_widget(block, sub_layout[1]);
 }
