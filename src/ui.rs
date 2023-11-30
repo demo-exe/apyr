@@ -95,9 +95,13 @@ pub fn render_ui(app: &App, frame: &mut Frame) {
     let mut block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Search  ").alignment(Alignment::Center));
+    if app.re.is_none() {
+        block = block.style(Style::default().fg(Color::Red));
+    }
     if app.selected_panel == Panel::Search {
         block = block.border_style(highlight_style);
     }
+
     frame.render_widget(
         Paragraph::new(app.search_query.clone()).block(block),
         sub_layout[0],
