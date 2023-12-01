@@ -1,4 +1,8 @@
 use anyhow::Result;
+
+#[cfg(debug_assertions)]
+use better_panic::Settings;
+
 use crossterm::event::{self, KeyCode};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -23,6 +27,28 @@ fn shutdown() -> Result<()> {
     Ok(())
 }
 
+#[cfg(debug_assertions)]
+pub fn initialize_panic_handler() {
+    std::panic::set_hook(Box::new(|panic_info| {
+        crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+        crossterm::terminal::disable_raw_mode().unwrap();
+        Settings::auto()
+            .most_recent_first(false)
+            .lineno_suffix(true)
+            .create_panic_handler()(panic_info);
+    }));
+}
+
+#[cfg(not(debug_assertions))]
+pub fn initialize_panic_handler() {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+        crossterm::terminal::disable_raw_mode().unwrap();
+        original_hook(panic_info);
+    }));
+}
+
 // App update function
 fn process_event(app: &mut App) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(250))? {
@@ -40,22 +66,17 @@ fn process_event(app: &mut App) -> Result<()> {
 }
 
 fn run() -> Result<()> {
-    // ratatui terminal
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
-    // application state
     let mut app = App::default();
 
     loop {
-        // application render
         t.draw(|f| {
             ui::render_ui(&app, f);
         })?;
 
-        // application update
         process_event(&mut app)?;
 
-        // application exit
         if app.should_quit {
             break;
         }
@@ -65,7 +86,8 @@ fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    // setup terminal
+    initialize_panic_handler();
+
     startup()?;
 
     let result = run();
