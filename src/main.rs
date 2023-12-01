@@ -9,6 +9,8 @@ use crossterm::terminal::{
 };
 use crossterm::{event::Event::Key, execute};
 use ratatui::prelude::{CrosstermBackend, Terminal};
+use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
+use signal_hook::iterator::{Signals, SignalsInfo};
 use state::App;
 
 mod reader;
@@ -63,7 +65,7 @@ fn process_event(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-fn run() -> Result<()> {
+fn run(mut signals: SignalsInfo) -> Result<()> {
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
     let mut app = App::default();
@@ -75,7 +77,7 @@ fn run() -> Result<()> {
 
         process_event(&mut app)?;
 
-        if app.should_quit {
+        if app.should_quit || signals.pending().next().is_some() {
             break;
         }
     }
@@ -84,11 +86,13 @@ fn run() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    let signals = Signals::new(&[SIGTERM, SIGHUP, SIGINT, SIGQUIT])?;
+
     initialize_panic_handler();
 
     startup()?;
 
-    let result = run();
+    let result = run(signals);
 
     // teardown terminal before unwrapping Result of app run
     shutdown()?;

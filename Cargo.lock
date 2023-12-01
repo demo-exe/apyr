@@ -59,6 +59,7 @@ dependencies = [
  "crossterm",
  "ratatui",
  "regex",
+ "signal-hook",
 ]
 
 [[package]]
