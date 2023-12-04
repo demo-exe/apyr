@@ -1,136 +1,149 @@
 use ratatui::widgets::block::Title;
 use ratatui::Frame;
 use ratatui::{prelude::*, widgets::*};
+use regex::Regex;
 
-use crate::state::{App, Panel, VERSION};
+use crate::state::{App, Panel, Point, VERSION};
 
-fn cut_text_window(app: &App, rect: Rect) -> Vec<String> {
-    let mut text_lines = Vec::new();
+fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> Vec<&'a str> {
+    let mut text_lines: Vec<&str> = Vec::with_capacity(rect.height as usize);
 
-    if app.cursor.y >= app.lines.len() as u32 {
+    if offset.y >= source.len() {
         return text_lines;
     }
 
-    let mut fitting = app.lines.len() - app.cursor.y as usize;
-    if fitting > rect.height as usize {
-        fitting = rect.height as usize;
+    for i in offset.y..(offset.y + rect.height as usize) as usize {
+        if i >= source.len() {
+            break;
+        }
+        if offset.x + rect.width as usize >= source[i].len() {
+            text_lines.push(&source[i][offset.x..]);
+            continue;
+        } else if offset.x >= source[i].len() {
+            text_lines.push("");
+        }
+        text_lines.push(&source[i][offset.x..offset.x + rect.width as usize]);
     }
 
-    for i in 0..fitting {
-        let line = &app.lines[(app.cursor.y + i as u32) as usize];
-        text_lines.push(line.clone());
-    }
     text_lines
 }
 
-fn color_line<'a>(app: &App, line: String) -> Line<'a> {
-    if app.re.is_none() {
+fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool) -> Line<'a> {
+    let hlcolor = Color::DarkGray;
+    let mat;
+    if let Some(re) = re {
+        // TODO: this should not be called if line is not a match
+        mat = re
+            .find_iter(&line)
+            .map(|m| (m.start(), m.end()))
+            .collect::<Vec<_>>();
+    } else {
+        if highlight {
+            return Line::styled(line, Style::default().bg(hlcolor));
+        }
         return Line::raw(line);
     }
-    let mat = app
-        .re
-        .as_ref()
-        .unwrap()
-        .find_iter(&line)
-        .collect::<Vec<_>>();
 
     let style = Style::default().fg(Color::Red);
 
-    let colored_line = if mat.len() > 0 {
-        let mut styledline: Vec<Span> = Vec::new();
-
-        let mut printed: usize = 0;
-        for mat in mat {
-            if mat.start() > printed {
-                styledline.push(Span::raw((&line[printed..mat.start()]).to_string()));
-            }
-            let colored = mat.as_str().to_string();
-            styledline.push(Span::styled(colored, style));
-            printed = mat.end();
+    let not_colored = |start: usize, end: usize| {
+        let text = &line[start..end];
+        if highlight {
+            Span::styled(text, Style::default().bg(hlcolor))
+        } else {
+            Span::raw(text)
         }
-        if printed < line.len() {
-            styledline.push(Span::raw((&line[printed..]).to_string()));
-        }
-        Line::from(styledline)
-    } else {
-        Line::raw(line)
     };
 
-    colored_line
+    let colored = |start: usize, end: usize| {
+        let text = &line[start..end];
+        if highlight {
+            Span::styled(text, style.bg(hlcolor))
+        } else {
+            Span::styled(text, style)
+        }
+    };
+
+    let mut result: Vec<Span> = Vec::new();
+    let mut last = 0;
+
+    for m in mat {
+        if m.0 > last {
+            result.push(not_colored(last, m.0));
+        }
+        result.push(colored(m.0, m.1));
+        last = m.1;
+    }
+    if last < line.len() {
+        result.push(not_colored(last, line.len()));
+    }
+
+    Line::from(result)
 }
 
-fn color_lines<'a>(app: &App, lines: Vec<String>) -> Text<'a> {
-    let mut colored_lines = Vec::new();
+fn render_log_text(app: &App, rect: Rect) -> Text {
+    let text_lines = cut_text_window(&app.log_lines, &rect, &app.log_offset);
 
-    for line in lines {
-        colored_lines.push(color_line(&app, line));
+    let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
+
+    for line in text_lines {
+        colored_lines.push(color_line(&app.re, line, false));
     }
+
     Text::from(colored_lines)
 }
 
-pub fn render_matches(app: &App) -> List {
-    let mut items = Vec::new();
-    for i in &app.matches {
-        let colored_line = color_line(&app, app.lines[*i].clone());
-        items.push(ListItem::new(colored_line));
-    }
-    List::new(items)
-}
-
 pub fn render_ui(app: &App, frame: &mut Frame) {
+    // default colors TODO: extract to some config
     let highlight_style = Style::default().bold().fg(Color::White);
+
+    // top
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(75), Constraint::Min(5)])
         .split(frame.size());
 
-    let mut block = Block::default()
+    // log window
+    let mut log_block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Log {stdin} ").alignment(Alignment::Center))
         .title(Title::from(format!(" Apyr v{VERSION}")).alignment(Alignment::Right));
-
     if app.selected_panel == Panel::Log {
-        block = block.border_style(highlight_style);
+        log_block = log_block.border_style(highlight_style);
     }
-
     frame.render_widget(
-        Paragraph::new(color_lines(
-            &app,
-            cut_text_window(&app, block.inner(main_layout[0])),
-        ))
-        .block(block),
+        Paragraph::new(render_log_text(app, log_block.inner(main_layout[0]))).block(log_block),
         main_layout[0],
     );
 
+    // bottom cluster = search + matches
     let sub_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(2), Constraint::Min(3)])
         .split(main_layout[1]);
-
-    let mut block = Block::default()
+    let mut search_block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Search  ").alignment(Alignment::Center));
     if app.re.is_none() {
-        block = block.style(Style::default().fg(Color::Red));
+        search_block = search_block.style(Style::default().fg(Color::Red));
     }
     if app.selected_panel == Panel::Search {
-        block = block.border_style(highlight_style);
+        search_block = search_block.border_style(highlight_style);
     }
-
     frame.render_widget(
-        Paragraph::new(app.search_query.clone()).block(block),
+        Paragraph::new(app.search_query.clone()).block(search_block),
         sub_layout[0],
     );
 
-    let mut block = Block::new()
+    // matches
+    let mut matches_block = Block::new()
         .borders(Borders::TOP)
         .title(Title::from(" Matches ").alignment(Alignment::Center));
 
     if app.selected_panel == Panel::Matches {
-        block = block.border_style(highlight_style);
+        matches_block = matches_block.border_style(highlight_style);
     }
-
-    let matches = render_matches(&app);
-
-    frame.render_widget(matches.block(block), sub_layout[1]);
+    // let matches = render_matches(&app, block.inner(sub_layout[1]));
+    let matches = Text::from(vec![Line::raw("asd")]);
+    frame.render_widget(Paragraph::new(matches).block(matches_block), sub_layout[1]);
 }

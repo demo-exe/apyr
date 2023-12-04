@@ -6,8 +6,14 @@ use crate::reader;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct Point {
-    pub x: u32,
-    pub y: u32,
+    pub x: usize,
+    pub y: usize,
+}
+
+impl Default for Point {
+    fn default() -> Self {
+        Point { x: 0, y: 0 }
+    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -20,26 +26,32 @@ pub enum Panel {
 // App state
 pub struct App {
     pub should_quit: bool,
-    pub lines: Vec<String>,
-    pub cursor: Point,
+    pub log_lines: Vec<String>,
+    pub log_offset: Point,
     pub re: Option<Regex>,
     pub selected_panel: Panel,
     pub last_panel: Panel,
     pub search_query: String,
     pub matches: Vec<usize>,
+
+    pub matches_selected: Option<usize>,
+    pub matches_offset: Point,
 }
 
 impl Default for App {
     fn default() -> Self {
         App {
             should_quit: false,
-            lines: reader::read_file(),
-            cursor: Point { x: 0, y: 0 },
+            log_lines: reader::read_file(),
+            log_offset: Point::default(),
             re: None,
             selected_panel: Panel::Search,
             last_panel: Panel::Log,
             search_query: String::new(),
             matches: Vec::new(),
+
+            matches_selected: None,
+            matches_offset: Point::default(),
         }
     }
 }
@@ -58,7 +70,7 @@ fn recompile_regex(app: &mut App) {
         return;
     }
     if let Some(re) = &app.re {
-        for (i, line) in app.lines.iter().enumerate() {
+        for (i, line) in app.log_lines.iter().enumerate() {
             if re.find(line).is_some() {
                 app.matches.push(i);
             }
@@ -66,24 +78,37 @@ fn recompile_regex(app: &mut App) {
     }
 }
 
-pub fn process_key_event(key: KeyEvent, app: &mut App) {
-    if app.selected_panel == Panel::Search {
-        // TODO: vi mode ? how to best
-        if let KeyCode::Char(c) = key.code {
-            app.search_query.push(c);
-            recompile_regex(app);
-        } else if key.code == KeyCode::Backspace {
-            app.search_query.pop();
-            recompile_regex(app);
-        } else if key.code == KeyCode::Esc {
-            app.selected_panel = app.last_panel;
-        }
+fn add_matches_scroll(app: &mut App, is_add: bool, value: usize) {
+    if app.matches_selected.is_none() {
+        app.matches_selected = Some(app.matches_offset.y as usize);
+    }
+    let selected = app.matches_selected.unwrap();
+    if is_add {
+        app.matches_selected = Some(selected.saturating_add(value));
     } else {
-        match key.code {
-            KeyCode::Char('j') => app.cursor.y = app.cursor.y.saturating_add(1),
-            KeyCode::Char('k') => app.cursor.y = app.cursor.y.saturating_sub(1),
-            KeyCode::Char('u') => app.cursor.y = app.cursor.y.saturating_sub(5),
-            KeyCode::Char('d') => app.cursor.y = app.cursor.y.saturating_add(5),
+        app.matches_selected = Some(selected.saturating_sub(value));
+    }
+}
+
+pub fn process_key_event(key: KeyEvent, app: &mut App) {
+    match app.selected_panel {
+        Panel::Search => {
+            // TODO: vi mode ? how to best
+            if let KeyCode::Char(c) = key.code {
+                app.search_query.push(c);
+                recompile_regex(app);
+            } else if key.code == KeyCode::Backspace {
+                app.search_query.pop();
+                recompile_regex(app);
+            } else if key.code == KeyCode::Esc {
+                app.selected_panel = app.last_panel;
+            }
+        }
+        Panel::Matches => match key.code {
+            KeyCode::Char('j') => add_matches_scroll(app, true, 1),
+            KeyCode::Char('k') => add_matches_scroll(app, false, 1),
+            KeyCode::Char('u') => add_matches_scroll(app, false, 5),
+            KeyCode::Char('d') => add_matches_scroll(app, true, 5),
             KeyCode::Char('q') => app.should_quit = true,
             KeyCode::Char('c') => {
                 app.search_query.clear();
@@ -94,13 +119,36 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
                     Panel::Log => Panel::Matches,
                     Panel::Matches => Panel::Log,
                     _ => app.selected_panel,
-                }
+                };
             }
             KeyCode::Char('i') => {
                 app.last_panel = app.selected_panel;
                 app.selected_panel = Panel::Search;
             }
             _ => {}
-        }
+        },
+        Panel::Log => match key.code {
+            KeyCode::Char('j') => app.log_offset.y = app.log_offset.y.saturating_add(1),
+            KeyCode::Char('k') => app.log_offset.y = app.log_offset.y.saturating_sub(1),
+            KeyCode::Char('u') => app.log_offset.y = app.log_offset.y.saturating_sub(5),
+            KeyCode::Char('d') => app.log_offset.y = app.log_offset.y.saturating_add(5),
+            KeyCode::Char('q') => app.should_quit = true,
+            KeyCode::Char('c') => {
+                app.search_query.clear();
+                app.selected_panel = Panel::Search;
+            }
+            KeyCode::Tab => {
+                app.selected_panel = match app.selected_panel {
+                    Panel::Log => Panel::Matches,
+                    Panel::Matches => Panel::Log,
+                    _ => app.selected_panel,
+                };
+            }
+            KeyCode::Char('i') => {
+                app.last_panel = app.selected_panel;
+                app.selected_panel = Panel::Search;
+            }
+            _ => {}
+        },
     }
 }
