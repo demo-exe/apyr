@@ -86,7 +86,7 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let signals = Signals::new(&[SIGTERM, SIGHUP, SIGINT, SIGQUIT])?;
+    let signals = Signals::new([SIGTERM, SIGHUP, SIGINT, SIGQUIT])?;
 
     initialize_panic_handler();
 

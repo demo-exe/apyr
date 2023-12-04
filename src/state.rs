@@ -5,15 +5,10 @@ use crate::reader;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Default)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
-}
-
-impl Default for Point {
-    fn default() -> Self {
-        Point { x: 0, y: 0 }
-    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -80,7 +75,7 @@ fn recompile_regex(app: &mut App) {
 
 fn add_matches_scroll(app: &mut App, is_add: bool, value: usize) {
     if app.matches_selected.is_none() {
-        app.matches_selected = Some(app.matches_offset.y as usize);
+        app.matches_selected = Some(app.matches_offset.y);
     }
     let selected = app.matches_selected.unwrap();
     if is_add {

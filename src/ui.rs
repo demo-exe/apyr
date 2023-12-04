@@ -12,7 +12,7 @@ fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> 
         return text_lines;
     }
 
-    for i in offset.y..(offset.y + rect.height as usize) as usize {
+    for i in offset.y..(offset.y + rect.height as usize) {
         if i >= source.len() {
             break;
         }
@@ -34,7 +34,7 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool) -> Line<'a
     if let Some(re) = re {
         // TODO: this should not be called if line is not a match
         mat = re
-            .find_iter(&line)
+            .find_iter(line)
             .map(|m| (m.start(), m.end()))
             .collect::<Vec<_>>();
     } else {
