@@ -93,7 +93,21 @@ fn render_log_text(app: &App, rect: Rect) -> Text {
     Text::from(colored_lines)
 }
 
-fn render_matches_text(app: &App, rect: Rect) -> Text {
+fn ensure_matches_in_viewport(app: &mut App, rect: Rect) {
+    if app.matches_selected.is_none() {
+        return;
+    }
+    let selected = app.matches_selected.unwrap();
+    if selected < app.matches_offset.y {
+        app.matches_offset.y = selected;
+    } else if selected >= app.matches_offset.y + rect.height as usize {
+        app.matches_offset.y = selected - rect.height as usize + 1;
+    }
+}
+
+fn render_matches_text(app: &mut App, rect: Rect) -> Text {
+    ensure_matches_in_viewport(app, rect);
+
     let mut text_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
     for i in app.matches_offset.y..(app.matches_offset.y + rect.height as usize) {
@@ -101,14 +115,14 @@ fn render_matches_text(app: &App, rect: Rect) -> Text {
             break;
         }
         let line = &app.log_lines[app.matches[i]];
-        let highlight = app.matches_selected == Some(i);
+        let highlight = (app.selected_panel == Panel::Matches) && (app.matches_selected == Some(i));
         text_lines.push(color_line(&app.re, line, highlight));
     }
 
     Text::from(text_lines)
 }
 
-pub fn render_ui(app: &App, frame: &mut Frame) {
+pub fn render_ui(app: &mut App, frame: &mut Frame) {
     // default colors TODO: extract to some config
     let highlight_style = Style::default().bold().fg(Color::White);
 
@@ -119,13 +133,10 @@ pub fn render_ui(app: &App, frame: &mut Frame) {
         .split(frame.size());
 
     // log window
-    let mut log_block = Block::default()
+    let log_block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Log {stdin} ").alignment(Alignment::Center))
         .title(Title::from(format!(" Apyr v{VERSION}")).alignment(Alignment::Right));
-    if app.selected_panel == Panel::Log {
-        log_block = log_block.border_style(highlight_style);
-    }
     frame.render_widget(
         Paragraph::new(render_log_text(app, log_block.inner(main_layout[0]))).block(log_block),
         main_layout[0],

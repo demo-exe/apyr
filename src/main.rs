@@ -72,7 +72,7 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
 
     loop {
         t.draw(|f| {
-            ui::render_ui(&app, f);
+            ui::render_ui(&mut app, f);
         })?;
 
         process_event(&mut app)?;

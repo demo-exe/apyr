@@ -21,15 +21,19 @@ pub enum Panel {
 // App state
 pub struct App {
     pub should_quit: bool,
+
     pub log_lines: Vec<String>,
     pub log_offset: Point,
-    pub re: Option<Regex>,
-    pub selected_panel: Panel,
-    pub last_panel: Panel,
+
     pub search_query: String,
+    pub re: Option<Regex>,
+    // vec of line numbers
     pub matches: Vec<usize>,
 
+    pub selected_panel: Panel,
+
     pub matches_selected: Option<usize>,
+    pub matches_selected_last: Option<usize>,
     pub matches_offset: Point,
 }
 
@@ -41,11 +45,11 @@ impl Default for App {
             log_offset: Point::default(),
             re: None,
             selected_panel: Panel::Search,
-            last_panel: Panel::Log,
             search_query: String::new(),
             matches: Vec::new(),
 
             matches_selected: None,
+            matches_selected_last: None,
             matches_offset: Point::default(),
         }
     }
@@ -53,6 +57,9 @@ impl Default for App {
 
 fn recompile_regex(app: &mut App) {
     app.matches.clear();
+    app.matches_selected = None;
+    app.matches_offset = Point::default();
+
     if app.search_query.len() <= 3 {
         app.re = None;
         return;
@@ -66,7 +73,7 @@ fn recompile_regex(app: &mut App) {
     }
     if let Some(re) = &app.re {
         for (i, line) in app.log_lines.iter().enumerate() {
-            if re.find(line).is_some() {
+            if re.is_match(line) {
                 app.matches.push(i);
             }
         }
@@ -74,20 +81,17 @@ fn recompile_regex(app: &mut App) {
 }
 
 fn add_matches_scroll(app: &mut App, value: isize) {
-    if app.matches_selected.is_none() {
-        app.matches_selected = Some(app.matches_offset.y);
-    }
-    let selected = app.matches_selected.unwrap();
-    app.matches_selected = Some(selected.saturating_add_signed(value));
-    if app.matches_selected.unwrap() >= app.matches.len() {
-        app.matches_selected = Some(app.matches.len() - 1);
+    if app.matches.len() == 0 {
         return;
     }
-    if app.matches_selected.unwrap() < app.matches_offset.y {
-        app.matches_offset.y = app.matches_selected.unwrap();
-    }
-    if app.matches_selected.unwrap() >= app.matches_offset.y + 10 {
-        app.matches_offset.y = app.matches_selected.unwrap() - 10;
+    if let Some(selected) = app.matches_selected {
+        app.matches_selected = Some(selected.saturating_add_signed(value));
+        if app.matches_selected.unwrap() >= app.matches.len() {
+            app.matches_selected = Some(app.matches.len() - 1);
+            return;
+        }
+    } else {
+        app.matches_selected = Some(app.matches_offset.y);
     }
 }
 
@@ -95,10 +99,14 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
     // common
     match key.code {
         KeyCode::Tab => {
-            app.selected_panel = match app.selected_panel {
-                Panel::Log => Panel::Search,
-                Panel::Search => Panel::Matches,
-                Panel::Matches => Panel::Log,
+            match app.selected_panel {
+                Panel::Search => app.selected_panel = Panel::Matches,
+                Panel::Matches => {
+                    app.selected_panel = Panel::Search;
+                }
+                _ => {
+                    panic!("unexpected panel");
+                }
             };
         }
         _ => {}
@@ -113,7 +121,7 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
                 app.search_query.pop();
                 recompile_regex(app);
             } else if key.code == KeyCode::Esc {
-                app.selected_panel = app.last_panel;
+                app.selected_panel = Panel::Matches;
             }
         }
         Panel::Matches => match key.code {
@@ -125,24 +133,12 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
                 app.selected_panel = Panel::Search;
             }
             KeyCode::Char('i') => {
-                app.last_panel = app.selected_panel;
                 app.selected_panel = Panel::Search;
             }
             _ => {}
         },
-        Panel::Log => match key.code {
-            KeyCode::Char('j') => app.log_offset.y = app.log_offset.y.saturating_add(1),
-            KeyCode::Char('k') => app.log_offset.y = app.log_offset.y.saturating_sub(1),
-            KeyCode::Char('q') => app.should_quit = true,
-            KeyCode::Char('c') => {
-                app.search_query.clear();
-                app.selected_panel = Panel::Search;
-            }
-            KeyCode::Char('i') => {
-                app.last_panel = app.selected_panel;
-                app.selected_panel = Panel::Search;
-            }
-            _ => {}
-        },
+        _ => {
+            panic!("unexpected panel");
+        }
     }
 }
