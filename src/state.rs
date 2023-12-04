@@ -13,7 +13,6 @@ pub struct Point {
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum Panel {
-    Log,
     Search,
     Matches,
 }
@@ -33,7 +32,7 @@ pub struct App {
     pub selected_panel: Panel,
 
     pub matches_selected: Option<usize>,
-    pub matches_selected_last: Option<usize>,
+    pub matches_should_locate: bool,
     pub matches_offset: Point,
 }
 
@@ -49,7 +48,7 @@ impl Default for App {
             matches: Vec::new(),
 
             matches_selected: None,
-            matches_selected_last: None,
+            matches_should_locate: false,
             matches_offset: Point::default(),
         }
     }
@@ -81,7 +80,7 @@ fn recompile_regex(app: &mut App) {
 }
 
 fn add_matches_scroll(app: &mut App, value: isize) {
-    if app.matches.len() == 0 {
+    if app.matches.is_empty() {
         return;
     }
     if let Some(selected) = app.matches_selected {
@@ -93,19 +92,22 @@ fn add_matches_scroll(app: &mut App, value: isize) {
     } else {
         app.matches_selected = Some(app.matches_offset.y);
     }
+    app.matches_should_locate = true;
+}
+
+fn add_log_scroll(app: &mut App, value: isize) {
+    app.log_offset.y = app.log_offset.y.saturating_add_signed(value);
 }
 
 pub fn process_key_event(key: KeyEvent, app: &mut App) {
     // common
+    #[allow(clippy::single_match)]
     match key.code {
         KeyCode::Tab => {
             match app.selected_panel {
                 Panel::Search => app.selected_panel = Panel::Matches,
                 Panel::Matches => {
                     app.selected_panel = Panel::Search;
-                }
-                _ => {
-                    panic!("unexpected panel");
                 }
             };
         }
@@ -127,6 +129,8 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
         Panel::Matches => match key.code {
             KeyCode::Char('j') => add_matches_scroll(app, 1),
             KeyCode::Char('k') => add_matches_scroll(app, -1),
+            KeyCode::Char('d') => add_log_scroll(app, 5),
+            KeyCode::Char('u') => add_log_scroll(app, -5),
             KeyCode::Char('q') => app.should_quit = true,
             KeyCode::Char('c') => {
                 app.search_query.clear();
@@ -137,8 +141,5 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
             }
             _ => {}
         },
-        _ => {
-            panic!("unexpected panel");
-        }
     }
 }

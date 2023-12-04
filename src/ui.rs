@@ -79,22 +79,42 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16
     }
 
     if highlight {
-        let filler: String = std::iter::repeat(' ')
-            .take((width - line.len() as u16).into())
-            .collect();
+        let filler: String = " ".repeat((width - line.len() as u16).into());
         result.push(Span::styled(filler, Style::default().bg(hlcolor)));
     }
 
     Line::from(result)
 }
+fn ensure_log_in_viewport(app: &mut App, rect: Rect) {
+    if app.matches_should_locate && app.matches_selected.is_some() {
+        let match_i = app.matches[app.matches_selected.unwrap()];
 
-fn render_log_text(app: &App, rect: Rect) -> Text {
+        if match_i < rect.height as usize / 2 {
+            app.log_offset.y = 0;
+        } else if match_i >= app.log_lines.len() - rect.height as usize / 2 {
+            app.log_offset.y = app.log_lines.len() - rect.height as usize;
+        } else {
+            app.log_offset.y = match_i - rect.height as usize / 2;
+        }
+
+        app.matches_should_locate = false;
+    }
+}
+
+fn render_log_text(app: &mut App, rect: Rect) -> Text {
+    ensure_log_in_viewport(app, rect);
+
     let text_lines = cut_text_window(&app.log_lines, &rect, &app.log_offset);
 
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
-    for line in text_lines {
-        colored_lines.push(color_line(&app.re, line, false, rect.width));
+    for (i, line) in text_lines.iter().enumerate() {
+        let highlight = if let Some(match_i) = app.matches_selected {
+            app.matches[match_i] == app.log_offset.y + i
+        } else {
+            false
+        };
+        colored_lines.push(color_line(&app.re, line, highlight, rect.width));
     }
 
     Text::from(colored_lines)
