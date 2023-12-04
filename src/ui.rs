@@ -28,23 +28,9 @@ fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> 
     text_lines
 }
 
-fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool) -> Line<'a> {
-    let hlcolor = Color::DarkGray;
-    let mat;
-    if let Some(re) = re {
-        // TODO: this should not be called if line is not a match
-        mat = re
-            .find_iter(line)
-            .map(|m| (m.start(), m.end()))
-            .collect::<Vec<_>>();
-    } else {
-        if highlight {
-            return Line::styled(line, Style::default().bg(hlcolor));
-        }
-        return Line::raw(line);
-    }
-
+fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16) -> Line<'a> {
     let style = Style::default().fg(Color::Red);
+    let hlcolor = Color::DarkGray;
 
     let not_colored = |start: usize, end: usize| {
         let text = &line[start..end];
@@ -64,6 +50,20 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool) -> Line<'a
         }
     };
 
+    let mat;
+    if let Some(re) = re {
+        // TODO: this should not be called if line is not a match
+        mat = re
+            .find_iter(line)
+            .map(|m| (m.start(), m.end()))
+            .collect::<Vec<_>>();
+    } else {
+        if highlight {
+            return Line::styled(line, Style::default().bg(hlcolor));
+        }
+        return Line::raw(line);
+    }
+
     let mut result: Vec<Span> = Vec::new();
     let mut last = 0;
 
@@ -78,6 +78,13 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool) -> Line<'a
         result.push(not_colored(last, line.len()));
     }
 
+    if highlight {
+        let filler: String = std::iter::repeat(' ')
+            .take((width - line.len() as u16).into())
+            .collect();
+        result.push(Span::styled(filler, Style::default().bg(hlcolor)));
+    }
+
     Line::from(result)
 }
 
@@ -87,7 +94,7 @@ fn render_log_text(app: &App, rect: Rect) -> Text {
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
     for line in text_lines {
-        colored_lines.push(color_line(&app.re, line, false));
+        colored_lines.push(color_line(&app.re, line, false, rect.width));
     }
 
     Text::from(colored_lines)
@@ -116,7 +123,7 @@ fn render_matches_text(app: &mut App, rect: Rect) -> Text {
         }
         let line = &app.log_lines[app.matches[i]];
         let highlight = (app.selected_panel == Panel::Matches) && (app.matches_selected == Some(i));
-        text_lines.push(color_line(&app.re, line, highlight));
+        text_lines.push(color_line(&app.re, line, highlight, rect.width));
     }
 
     Text::from(text_lines)
