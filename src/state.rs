@@ -73,19 +73,36 @@ fn recompile_regex(app: &mut App) {
     }
 }
 
-fn add_matches_scroll(app: &mut App, is_add: bool, value: usize) {
+fn add_matches_scroll(app: &mut App, value: isize) {
     if app.matches_selected.is_none() {
         app.matches_selected = Some(app.matches_offset.y);
     }
     let selected = app.matches_selected.unwrap();
-    if is_add {
-        app.matches_selected = Some(selected.saturating_add(value));
-    } else {
-        app.matches_selected = Some(selected.saturating_sub(value));
+    app.matches_selected = Some(selected.saturating_add_signed(value));
+    if app.matches_selected.unwrap() >= app.matches.len() {
+        app.matches_selected = Some(app.matches.len() - 1);
+        return;
+    }
+    if app.matches_selected.unwrap() < app.matches_offset.y {
+        app.matches_offset.y = app.matches_selected.unwrap();
+    }
+    if app.matches_selected.unwrap() >= app.matches_offset.y + 10 {
+        app.matches_offset.y = app.matches_selected.unwrap() - 10;
     }
 }
 
 pub fn process_key_event(key: KeyEvent, app: &mut App) {
+    // common
+    match key.code {
+        KeyCode::Tab => {
+            app.selected_panel = match app.selected_panel {
+                Panel::Log => Panel::Search,
+                Panel::Search => Panel::Matches,
+                Panel::Matches => Panel::Log,
+            };
+        }
+        _ => {}
+    }
     match app.selected_panel {
         Panel::Search => {
             // TODO: vi mode ? how to best
@@ -100,21 +117,12 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
             }
         }
         Panel::Matches => match key.code {
-            KeyCode::Char('j') => add_matches_scroll(app, true, 1),
-            KeyCode::Char('k') => add_matches_scroll(app, false, 1),
-            KeyCode::Char('u') => add_matches_scroll(app, false, 5),
-            KeyCode::Char('d') => add_matches_scroll(app, true, 5),
+            KeyCode::Char('j') => add_matches_scroll(app, 1),
+            KeyCode::Char('k') => add_matches_scroll(app, -1),
             KeyCode::Char('q') => app.should_quit = true,
             KeyCode::Char('c') => {
                 app.search_query.clear();
                 app.selected_panel = Panel::Search;
-            }
-            KeyCode::Tab => {
-                app.selected_panel = match app.selected_panel {
-                    Panel::Log => Panel::Matches,
-                    Panel::Matches => Panel::Log,
-                    _ => app.selected_panel,
-                };
             }
             KeyCode::Char('i') => {
                 app.last_panel = app.selected_panel;
@@ -125,19 +133,10 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
         Panel::Log => match key.code {
             KeyCode::Char('j') => app.log_offset.y = app.log_offset.y.saturating_add(1),
             KeyCode::Char('k') => app.log_offset.y = app.log_offset.y.saturating_sub(1),
-            KeyCode::Char('u') => app.log_offset.y = app.log_offset.y.saturating_sub(5),
-            KeyCode::Char('d') => app.log_offset.y = app.log_offset.y.saturating_add(5),
             KeyCode::Char('q') => app.should_quit = true,
             KeyCode::Char('c') => {
                 app.search_query.clear();
                 app.selected_panel = Panel::Search;
-            }
-            KeyCode::Tab => {
-                app.selected_panel = match app.selected_panel {
-                    Panel::Log => Panel::Matches,
-                    Panel::Matches => Panel::Log,
-                    _ => app.selected_panel,
-                };
             }
             KeyCode::Char('i') => {
                 app.last_panel = app.selected_panel;

@@ -93,6 +93,21 @@ fn render_log_text(app: &App, rect: Rect) -> Text {
     Text::from(colored_lines)
 }
 
+fn render_matches_text(app: &App, rect: Rect) -> Text {
+    let mut text_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
+
+    for i in app.matches_offset.y..(app.matches_offset.y + rect.height as usize) {
+        if i >= app.matches.len() {
+            break;
+        }
+        let line = &app.log_lines[app.matches[i]];
+        let highlight = app.matches_selected == Some(i);
+        text_lines.push(color_line(&app.re, line, highlight));
+    }
+
+    Text::from(text_lines)
+}
+
 pub fn render_ui(app: &App, frame: &mut Frame) {
     // default colors TODO: extract to some config
     let highlight_style = Style::default().bold().fg(Color::White);
@@ -143,7 +158,9 @@ pub fn render_ui(app: &App, frame: &mut Frame) {
     if app.selected_panel == Panel::Matches {
         matches_block = matches_block.border_style(highlight_style);
     }
-    // let matches = render_matches(&app, block.inner(sub_layout[1]));
-    let matches = Text::from(vec![Line::raw("asd")]);
-    frame.render_widget(Paragraph::new(matches).block(matches_block), sub_layout[1]);
+    frame.render_widget(
+        Paragraph::new(render_matches_text(app, matches_block.inner(sub_layout[1])))
+            .block(matches_block),
+        sub_layout[1],
+    );
 }
