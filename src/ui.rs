@@ -79,7 +79,7 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16
     }
 
     if highlight {
-        let filler: String = " ".repeat((width - line.len() as u16).into());
+        let filler: String = " ".repeat((width.saturating_sub(line.len() as u16)).into());
         result.push(Span::styled(filler, Style::default().bg(hlcolor)));
     }
 
