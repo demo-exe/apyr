@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use ratatui::widgets::block::Title;
 use ratatui::Frame;
 use ratatui::{prelude::*, widgets::*};
@@ -5,24 +7,38 @@ use regex::Regex;
 
 use crate::state::{App, Panel, Point, VERSION};
 
+// TODO: refactor into 1 function somehow ? (unsure about lifetimes w/ generics)
 fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> Vec<&'a str> {
     let mut text_lines: Vec<&str> = Vec::with_capacity(rect.height as usize);
 
-    if offset.y >= source.len() {
-        return text_lines;
-    }
+    let available_lines = min(rect.height as usize, source.len().saturating_sub(offset.y));
 
-    for i in offset.y..(offset.y + rect.height as usize) {
-        if i >= source.len() {
-            break;
-        }
-        if offset.x + rect.width as usize >= source[i].len() {
-            text_lines.push(&source[i][offset.x..]);
-            continue;
-        } else if offset.x >= source[i].len() {
+    for line in source.iter().skip(offset.y).take(available_lines) {
+        let available_width = min(rect.width as usize, line.len().saturating_sub(offset.x));
+
+        if available_width != 0 {
+            text_lines.push(&line[offset.x..offset.x + available_width]);
+        } else {
             text_lines.push("");
         }
-        text_lines.push(&source[i][offset.x..offset.x + rect.width as usize]);
+    }
+
+    text_lines
+}
+
+fn cut_text_window2<'a>(source: Vec<&'a str>, rect: &Rect, offset: &Point) -> Vec<&'a str> {
+    let mut text_lines: Vec<&str> = Vec::with_capacity(rect.height as usize);
+
+    let available_lines = min(rect.height as usize, source.len().saturating_sub(offset.y));
+
+    for line in source.iter().skip(offset.y).take(available_lines) {
+        let available_width = min(rect.width as usize, line.len().saturating_sub(offset.x));
+
+        if available_width != 0 {
+            text_lines.push(&line[offset.x..offset.x + available_width]);
+        } else {
+            text_lines.push("");
+        }
     }
 
     text_lines
@@ -133,20 +149,20 @@ fn ensure_matches_in_viewport(app: &mut App, rect: Rect) {
 }
 
 fn render_matches_text(app: &mut App, rect: Rect) -> Text {
+    // TODO: this whole fn probably should be refactored
     ensure_matches_in_viewport(app, rect);
 
-    let mut text_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
+    let matches: Vec<&str> = app.matches.iter().map(|i| &app.log_lines[*i][..]).collect();
+    let text_lines = cut_text_window2(matches, &rect, &app.matches_offset);
 
-    for i in app.matches_offset.y..(app.matches_offset.y + rect.height as usize) {
-        if i >= app.matches.len() {
-            break;
-        }
-        let line = &app.log_lines[app.matches[i]];
+    let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
+
+    for (i, line) in text_lines.iter().enumerate() {
         let highlight = (app.selected_panel == Panel::Matches) && (app.matches_selected == Some(i));
-        text_lines.push(color_line(&app.re, line, highlight, rect.width));
+        colored_lines.push(color_line(&app.re, line, highlight, rect.width));
     }
 
-    Text::from(text_lines)
+    Text::from(colored_lines)
 }
 
 pub fn render_ui(app: &mut App, frame: &mut Frame) {

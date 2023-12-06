@@ -23,6 +23,7 @@ pub struct App {
 
     pub log_lines: Vec<String>,
     pub log_offset: Point,
+    pub log_max_width: usize,
 
     pub search_query: String,
     pub re: Option<Regex>,
@@ -38,10 +39,16 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
+        let log_lines = reader::read_file();
+        let log_max_width = log_lines.iter().map(|line| line.len()).max().unwrap();
+
         App {
             should_quit: false,
-            log_lines: reader::read_file(),
+
+            log_lines,
             log_offset: Point::default(),
+            log_max_width,
+
             re: None,
             selected_panel: Panel::Search,
             search_query: String::new(),
@@ -88,7 +95,6 @@ fn add_matches_scroll(app: &mut App, value: isize) {
         app.matches_selected = Some(selected.saturating_add_signed(value));
         if app.matches_selected.unwrap() >= app.matches.len() {
             app.matches_selected = Some(app.matches.len() - 1);
-            return;
         }
     } else {
         app.matches_selected = Some(app.matches_offset.y);
@@ -97,6 +103,11 @@ fn add_matches_scroll(app: &mut App, value: isize) {
 
 fn add_log_scroll(app: &mut App, value: isize) {
     app.log_offset.y = app.log_offset.y.saturating_add_signed(value);
+}
+
+fn add_horizontal_scroll(app: &mut App, value: isize) {
+    app.log_offset.x = app.log_offset.x.saturating_add_signed(value);
+    app.matches_offset.x = app.log_offset.x;
 }
 
 pub fn process_key_event(key: KeyEvent, app: &mut App) {
@@ -131,6 +142,8 @@ pub fn process_key_event(key: KeyEvent, app: &mut App) {
             KeyCode::Char('k') => add_matches_scroll(app, -1),
             KeyCode::Char('d') => add_log_scroll(app, 5),
             KeyCode::Char('u') => add_log_scroll(app, -5),
+            KeyCode::Char('l') => add_horizontal_scroll(app, 3),
+            KeyCode::Char('h') => add_horizontal_scroll(app, -3),
             KeyCode::Char('q') => app.should_quit = true,
             KeyCode::Char('c') => {
                 app.search_query.clear();
