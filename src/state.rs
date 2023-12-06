@@ -83,6 +83,7 @@ fn add_matches_scroll(app: &mut App, value: isize) {
     if app.matches.is_empty() {
         return;
     }
+    app.matches_should_locate = true;
     if let Some(selected) = app.matches_selected {
         app.matches_selected = Some(selected.saturating_add_signed(value));
         if app.matches_selected.unwrap() >= app.matches.len() {
@@ -92,7 +93,6 @@ fn add_matches_scroll(app: &mut App, value: isize) {
     } else {
         app.matches_selected = Some(app.matches_offset.y);
     }
-    app.matches_should_locate = true;
 }
 
 fn add_log_scroll(app: &mut App, value: isize) {
