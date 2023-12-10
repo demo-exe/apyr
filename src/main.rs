@@ -1,3 +1,6 @@
+use std::sync::{Arc, Mutex};
+use std::thread;
+
 use anyhow::Result;
 
 #[cfg(debug_assertions)]
@@ -9,6 +12,7 @@ use crossterm::terminal::{
 };
 use crossterm::{event::Event::Key, execute};
 use ratatui::prelude::{CrosstermBackend, Terminal};
+use reader::reader_thread;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
 use state::App;
@@ -50,14 +54,15 @@ pub fn initialize_panic_handler() {
 }
 
 // App update function
-fn process_event(app: &mut App) -> Result<()> {
+fn process_event(app: &Arc<Mutex<App>>) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(250))? {
+        let mut app = app.lock().unwrap();
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
                     app.should_quit = true;
                 } else {
-                    state::process_key_event(key, app);
+                    state::process_key_event(key, &mut app);
                 }
             }
         }
@@ -68,19 +73,31 @@ fn process_event(app: &mut App) -> Result<()> {
 fn run(mut signals: SignalsInfo) -> Result<()> {
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
-    let mut app = App::default();
+    let app = Arc::new(Mutex::new(App::default()));
+
+    let app_handle = app.clone();
+    let handle = thread::spawn(move || reader_thread(app_handle));
 
     loop {
-        t.draw(|f| {
-            ui::render_ui(&mut app, f);
-        })?;
+        {
+            let mut lock = (&app).lock().unwrap();
+            t.draw(|f| {
+                ui::render_ui(&mut lock, f);
+            })?;
+        }
 
-        process_event(&mut app)?;
+        process_event(&app)?;
 
-        if app.should_quit || signals.pending().next().is_some() {
-            break;
+        {
+            let mut lock = app.lock().unwrap();
+            if lock.should_quit || signals.pending().next().is_some() {
+                lock.should_quit = true;
+                break;
+            }
         }
     }
+
+    let _ = handle.join();
 
     Ok(())
 }

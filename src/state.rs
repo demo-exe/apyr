@@ -1,8 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use regex::Regex;
 
-use crate::reader;
-
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Default)]
@@ -39,15 +37,12 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
-        let log_lines = reader::read_file();
-        let log_max_width = log_lines.iter().map(|line| line.len()).max().unwrap();
-
         App {
             should_quit: false,
 
-            log_lines,
+            log_lines: Vec::with_capacity(1024),
             log_offset: Point::default(),
-            log_max_width,
+            log_max_width: 0,
 
             re: None,
             selected_panel: Panel::Search,
