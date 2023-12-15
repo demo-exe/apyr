@@ -118,6 +118,11 @@ fn ensure_log_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
 
         ui.matches_should_locate = false;
     }
+    if ui.following {
+        // TODO: probably not a place for it
+        ui.matches_selected = None;
+        ui.log_offset.y = log_lines.len().saturating_sub(rect.height as usize);
+    }
 }
 
 fn render_log_text<'a>(
@@ -150,6 +155,11 @@ fn render_log_text<'a>(
 
 fn ensure_matches_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
     if ui.matches_selected.is_none() {
+        if ui.following {
+            // TODO: probably not a place for it
+            let matches = app.matches.lock().unwrap();
+            ui.matches_offset.y = matches.len().saturating_sub(rect.height as usize);
+        }
         return;
     }
     let selected = ui.matches_selected.unwrap();

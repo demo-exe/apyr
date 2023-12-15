@@ -42,6 +42,8 @@ pub struct UIState {
     pub matches_offset: Point,
 
     pub search_query: String,
+
+    pub following: bool,
 }
 
 impl Default for UIState {
@@ -57,6 +59,8 @@ impl Default for UIState {
             matches_offset: Point::default(),
 
             search_query: String::new(),
+
+            following: true,
         }
     }
 }
@@ -110,6 +114,7 @@ fn add_matches_scroll(app: &App, ui: &mut UIState, value: isize) {
     if matches.is_empty() {
         return;
     }
+    ui.following = false;
     ui.matches_should_locate = true;
     if let Some(selected) = ui.matches_selected {
         ui.matches_selected = Some(selected.saturating_add_signed(value));
@@ -173,6 +178,9 @@ pub fn process_key_event(key: KeyEvent, app: &App, ui: &mut UIState) {
             }
             KeyCode::Char('i') => {
                 ui.selected_panel = Panel::Search;
+            }
+            KeyCode::Char('f') => {
+                ui.following = true;
             }
             _ => {}
         },
