@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::thread;
 
 use anyhow::Result;
@@ -6,6 +7,7 @@ use anyhow::Result;
 #[cfg(debug_assertions)]
 use better_panic::Settings;
 
+use crossbeam::channel;
 use crossterm::event::{self, KeyCode};
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -15,11 +17,12 @@ use ratatui::prelude::{CrosstermBackend, Terminal};
 use reader::reader_thread;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
-use state::App;
+use state::{App, UIState};
 
 mod reader;
 mod state;
 mod ui;
+mod worker;
 
 fn startup() -> Result<()> {
     enable_raw_mode()?;
@@ -54,15 +57,14 @@ pub fn initialize_panic_handler() {
 }
 
 // App update function
-fn process_event(app: &Arc<Mutex<App>>) -> Result<()> {
+fn process_event(app: &Arc<App>, ui: &mut UIState) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(250))? {
-        let mut app = app.lock().unwrap();
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
-                    app.should_quit = true;
+                    app.should_quit.store(true, Ordering::Relaxed);
                 } else {
-                    state::process_key_event(key, &mut app);
+                    state::process_key_event(key, &app, ui);
                 }
             }
         }
@@ -73,31 +75,39 @@ fn process_event(app: &Arc<Mutex<App>>) -> Result<()> {
 fn run(mut signals: SignalsInfo) -> Result<()> {
     let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
 
-    let app = Arc::new(Mutex::new(App::default()));
+    let mut uistate = UIState::default();
 
+    let mut regex_threads = Vec::new();
+
+    let (sender, receiver) = channel::unbounded::<(usize, usize)>();
+
+    let app = Arc::new(App::new(sender));
     let app_handle = app.clone();
-    let handle = thread::spawn(move || reader_thread(app_handle));
+
+    let reader_handle = thread::spawn(move || reader_thread(app_handle));
+
+    for _ in 0..1 {
+        let app_handle = app.clone();
+        let receiver_handle = receiver.clone();
+        let regex_handle =
+            thread::spawn(move || worker::worker_thread(app_handle, receiver_handle));
+        regex_threads.push(regex_handle);
+    }
 
     loop {
-        {
-            let mut lock = (&app).lock().unwrap();
-            t.draw(|f| {
-                ui::render_ui(&mut lock, f);
-            })?;
-        }
+        t.draw(|f| {
+            ui::render_ui(&app, &mut uistate, f);
+        })?;
 
-        process_event(&app)?;
+        process_event(&app, &mut uistate)?;
 
-        {
-            let mut lock = app.lock().unwrap();
-            if lock.should_quit || signals.pending().next().is_some() {
-                lock.should_quit = true;
-                break;
-            }
+        if app.should_quit.load(Ordering::Relaxed) || signals.pending().next().is_some() {
+            app.should_quit.store(true, Ordering::Relaxed);
+            break;
         }
     }
 
-    let _ = handle.join();
+    let _ = reader_handle.join();
 
     Ok(())
 }

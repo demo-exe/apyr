@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::{prelude::*, widgets::*};
 use regex::Regex;
 
-use crate::state::{App, Panel, Point, VERSION};
+use crate::state::{App, Panel, Point, UIState, VERSION};
 
 // TODO: refactor into 1 function somehow ? (unsure about lifetimes w/ generics)
 fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> Vec<&'a str> {
@@ -101,71 +101,110 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16
 
     Line::from(result)
 }
-fn ensure_log_in_viewport(app: &mut App, rect: Rect) {
-    if app.matches_should_locate && app.matches_selected.is_some() {
-        let match_i = app.matches[app.matches_selected.unwrap()];
+fn ensure_log_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
+    let matches = app.matches.lock().unwrap();
+    let log_lines = app.log_lines.read().unwrap();
+    if ui.matches_should_locate && ui.matches_selected.is_some() {
+        let match_i = matches[ui.matches_selected.unwrap()];
 
-        if match_i < rect.height as usize / 2 {
-            app.log_offset.y = 0;
-        } else if match_i >= app.log_lines.len() - rect.height as usize / 2 {
-            app.log_offset.y = app.log_lines.len() - rect.height as usize;
+        if match_i < ((rect.height as usize) / 2) {
+            ui.log_offset.y = 0;
+        } else if match_i >= log_lines.len() - rect.height as usize / 2 {
+            // TODO: sus -1 here
+            ui.log_offset.y = log_lines.len() - (rect.height as usize - 1);
         } else {
-            app.log_offset.y = match_i - rect.height as usize / 2;
+            ui.log_offset.y = match_i - rect.height as usize / 2;
         }
 
-        app.matches_should_locate = false;
+        ui.matches_should_locate = false;
     }
 }
 
-fn render_log_text(app: &mut App, rect: Rect) -> Text {
-    ensure_log_in_viewport(app, rect);
+fn render_log_text<'a>(
+    app: &App,
+    ui: &mut UIState,
+    log_lines: &'a Vec<String>,
+    rect: Rect,
+) -> Text<'a> {
+    ensure_log_in_viewport(app, ui, rect);
 
-    let text_lines = cut_text_window(&app.log_lines, &rect, &app.log_offset);
+    let matches = app.matches.lock().unwrap();
+    // let log_lines = &app.log_lines.read().unwrap();
+    let re = app.re.read().unwrap();
+
+    let text_lines = cut_text_window(&log_lines, &rect, &ui.log_offset);
 
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
     for (i, line) in text_lines.iter().enumerate() {
-        let highlight = if let Some(match_i) = app.matches_selected {
-            app.matches[match_i] == app.log_offset.y + i
+        let highlight = if let Some(match_i) = ui.matches_selected {
+            matches[match_i] == ui.log_offset.y + i
         } else {
             false
         };
-        colored_lines.push(color_line(&app.re, line, highlight, rect.width));
+        colored_lines.push(color_line(&re, line, highlight, rect.width));
     }
 
     Text::from(colored_lines)
 }
 
-fn ensure_matches_in_viewport(app: &mut App, rect: Rect) {
-    if app.matches_selected.is_none() {
+fn ensure_matches_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
+    if ui.matches_selected.is_none() {
         return;
     }
-    let selected = app.matches_selected.unwrap();
-    if selected < app.matches_offset.y {
-        app.matches_offset.y = selected;
-    } else if selected >= app.matches_offset.y + rect.height as usize {
-        app.matches_offset.y = selected - rect.height as usize + 1;
+    let selected = ui.matches_selected.unwrap();
+    {
+        let matches = app.matches.lock().unwrap();
+
+        if selected < ui.matches_offset.y {
+            ui.matches_offset.y = selected;
+        } else if selected >= ui.matches_offset.y + rect.height as usize {
+            ui.matches_offset.y = selected - (rect.height as usize) / 2 + 1;
+        }
+
+        if selected < ((rect.height as usize) / 2) {
+            ui.matches_offset.y = 0;
+        } else if selected >= matches.len() - rect.height as usize / 2 {
+            // TODO: sus -1 here
+            ui.matches_offset.y = matches.len() - (rect.height as usize - 1);
+        } else {
+            ui.matches_offset.y = selected - rect.height as usize / 2;
+        }
     }
 }
 
-fn render_matches_text(app: &mut App, rect: Rect) -> Text {
+fn render_matches_text<'a>(
+    app: &App,
+    ui: &mut UIState,
+    log_lines: &'a Vec<String>,
+    rect: Rect,
+) -> Text<'a> {
     // TODO: this whole fn probably should be refactored
-    ensure_matches_in_viewport(app, rect);
+    ensure_matches_in_viewport(app, ui, rect);
 
-    let matches: Vec<&str> = app.matches.iter().map(|i| &app.log_lines[*i][..]).collect();
-    let text_lines = cut_text_window2(matches, &rect, &app.matches_offset);
+    // let log_lines = &app.log_lines.read().unwrap();
+    let matches: Vec<_> = app
+        .matches
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|i| &log_lines[*i][..])
+        .collect();
+    let text_lines = cut_text_window2(matches, &rect, &ui.matches_offset);
 
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
+    let re = app.re.read().unwrap();
     for (i, line) in text_lines.iter().enumerate() {
-        let highlight = (app.selected_panel == Panel::Matches) && (app.matches_selected == Some(i));
-        colored_lines.push(color_line(&app.re, line, highlight, rect.width));
+        let highlight = (ui.selected_panel == Panel::Matches)
+            && (ui.matches_selected == Some(i + ui.matches_offset.y));
+        colored_lines.push(color_line(&re, line, highlight, rect.width));
     }
 
     Text::from(colored_lines)
 }
 
-pub fn render_ui(app: &mut App, frame: &mut Frame) {
+pub fn render_ui(app: &App, ui: &mut UIState, frame: &mut Frame) {
     // default colors TODO: extract to some config
     let highlight_style = Style::default().bold().fg(Color::White);
 
@@ -181,7 +220,13 @@ pub fn render_ui(app: &mut App, frame: &mut Frame) {
         .title(Title::from(" Log {stdin} ").alignment(Alignment::Center))
         .title(Title::from(format!(" Apyr v{VERSION}")).alignment(Alignment::Right));
     frame.render_widget(
-        Paragraph::new(render_log_text(app, log_block.inner(main_layout[0]))).block(log_block),
+        Paragraph::new(render_log_text(
+            app,
+            ui,
+            &app.log_lines.read().unwrap(),
+            log_block.inner(main_layout[0]),
+        ))
+        .block(log_block),
         main_layout[0],
     );
 
@@ -193,14 +238,14 @@ pub fn render_ui(app: &mut App, frame: &mut Frame) {
     let mut search_block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Search  ").alignment(Alignment::Center));
-    if app.re.is_none() {
+    if app.re.read().unwrap().is_none() {
         search_block = search_block.style(Style::default().fg(Color::Red));
     }
-    if app.selected_panel == Panel::Search {
+    if ui.selected_panel == Panel::Search {
         search_block = search_block.border_style(highlight_style);
     }
     frame.render_widget(
-        Paragraph::new(app.search_query.clone()).block(search_block),
+        Paragraph::new(ui.search_query.clone()).block(search_block),
         sub_layout[0],
     );
 
@@ -209,12 +254,17 @@ pub fn render_ui(app: &mut App, frame: &mut Frame) {
         .borders(Borders::TOP)
         .title(Title::from(" Matches ").alignment(Alignment::Center));
 
-    if app.selected_panel == Panel::Matches {
+    if ui.selected_panel == Panel::Matches {
         matches_block = matches_block.border_style(highlight_style);
     }
     frame.render_widget(
-        Paragraph::new(render_matches_text(app, matches_block.inner(sub_layout[1])))
-            .block(matches_block),
+        Paragraph::new(render_matches_text(
+            app,
+            ui,
+            &app.log_lines.read().unwrap(),
+            matches_block.inner(sub_layout[1]),
+        ))
+        .block(matches_block),
         sub_layout[1],
     );
 }
