@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::Read,
+    io::{self, Read},
     sync::{atomic::Ordering, Arc},
     thread,
     time::Duration,
@@ -22,21 +22,58 @@ pub fn read_file() -> Vec<String> {
 }
 
 pub fn reader_thread(app: Arc<App>) {
-    let mut i: usize = 0;
+    let mut line_count: usize = 0;
+
     loop {
-        thread::sleep(Duration::new(0, 10000000));
-        {
-            app.log_lines
-                .write()
-                .unwrap()
-                .push(format!("[{:>5}]: Line from reader thread", i));
+        if app.should_quit.load(Ordering::Relaxed) {
+            break;
+        }
+        let mut buffer = String::new();
 
-            app.regex_channel.send((i, i + 1)).unwrap();
+        let size = io::stdin().read_line(&mut buffer);
 
-            i += 1;
-            if app.should_quit.load(Ordering::Relaxed) {
+        match size {
+            Ok(0) => {
+                // TODO
+                thread::sleep(Duration::new(0, 1000000));
+                continue;
+            }
+            Ok(_) => {
+                // panic!("eof {}", buffer);
+                let mut lock = app.log_lines.write().unwrap();
+                lock.push(buffer);
+                drop(lock);
+
+                app.regex_channel
+                    .send((line_count, line_count + 1))
+                    .unwrap();
+
+                line_count += 1;
+            }
+            Err(_) => {
+                // TODO
+                // panic!("EOF");
                 break;
             }
         }
     }
 }
+// pub fn reader_thread(app: Arc<App>) {
+//     let mut i: usize = 0;
+//     loop {
+//         thread::sleep(Duration::new(0, 10000000));
+//         {
+//             app.log_lines
+//                 .write()
+//                 .unwrap()
+//                 .push(format!("[{:>5}]: Line from reader thread", i));
+//
+//             app.regex_channel.send((i, i + 1)).unwrap();
+//
+//             i += 1;
+//             if app.should_quit.load(Ordering::Relaxed) {
+//                 break;
+//             }
+//         }
+//     }
+// }
