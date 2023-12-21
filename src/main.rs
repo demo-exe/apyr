@@ -58,7 +58,7 @@ pub fn initialize_panic_handler() {
 
 // App update function
 fn process_event(app: &Arc<App>, ui: &mut UIState) -> Result<()> {
-    if event::poll(std::time::Duration::from_millis(250))? {
+    if event::poll(std::time::Duration::from_millis(16))? {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
                 if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
@@ -84,14 +84,19 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
     let app = Arc::new(App::new(sender));
     let app_handle = app.clone();
 
-    let reader_handle = thread::spawn(move || reader_thread(app_handle));
+    // reader can be permamently blocked by stdin().read_line() so we don't join it
+    thread::Builder::new()
+        .name("reader".to_string())
+        .spawn(move || reader_thread(app_handle))
+        .unwrap();
 
-    for _ in 0..1 {
+    for i in 0..1 {
         let app_handle = app.clone();
         let receiver_handle = receiver.clone();
-        let regex_handle =
-            thread::spawn(move || worker::worker_thread(app_handle, receiver_handle));
-        regex_threads.push(regex_handle);
+        let thread = thread::Builder::new()
+            .name(format!("worker-{}", i))
+            .spawn(move || worker::worker_thread(app_handle, receiver_handle));
+        regex_threads.push(thread);
     }
 
     loop {
@@ -106,8 +111,6 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
             break;
         }
     }
-
-    let _ = reader_handle.join();
 
     Ok(())
 }

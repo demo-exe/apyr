@@ -88,7 +88,7 @@ fn recompile_regex(app: &App, ui: &mut UIState) {
     ui.matches_selected = None;
     ui.matches_offset = Point::default();
 
-    if ui.search_query.len() <= 3 {
+    if ui.search_query.len() < 3 {
         *app.re.write().unwrap() = None;
         return;
     }

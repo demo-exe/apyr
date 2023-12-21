@@ -2,9 +2,9 @@ use std::{
     fs::File,
     io::{self, Read},
     sync::{atomic::Ordering, Arc},
-    thread,
-    time::Duration,
 };
+
+use crossterm::tty::IsTty;
 
 use crate::state::App;
 
@@ -21,8 +21,25 @@ pub fn read_file() -> Vec<String> {
     lines
 }
 
+#[inline(always)]
+pub fn push_line(app: &Arc<App>, line: String, line_count: usize) {
+    {
+        let mut lock = app.log_lines.write().unwrap();
+        lock.push(line);
+    }
+    app.regex_channel
+        .send((line_count, line_count + 1))
+        .unwrap();
+}
+
 pub fn reader_thread(app: Arc<App>) {
     let mut line_count: usize = 0;
+    let stdin = io::stdin();
+    if stdin.is_tty() {
+        // no pipe, no stdin
+        push_line(&app, String::from(" ** EOF REACHED ** "), line_count);
+        return;
+    }
 
     loop {
         if app.should_quit.load(Ordering::Relaxed) {
@@ -30,30 +47,19 @@ pub fn reader_thread(app: Arc<App>) {
         }
         let mut buffer = String::new();
 
-        let size = io::stdin().read_line(&mut buffer);
+        let size = stdin.read_line(&mut buffer);
 
         match size {
             Ok(0) => {
-                // TODO
-                thread::sleep(Duration::new(0, 1000000));
-                continue;
+                push_line(&app, String::from(" ** EOF REACHED ** "), line_count);
+                break;
             }
             Ok(_) => {
-                // panic!("eof {}", buffer);
-                let mut lock = app.log_lines.write().unwrap();
-                lock.push(buffer);
-                drop(lock);
-
-                app.regex_channel
-                    .send((line_count, line_count + 1))
-                    .unwrap();
-
+                push_line(&app, buffer, line_count);
                 line_count += 1;
             }
             Err(_) => {
-                // TODO
-                // panic!("EOF");
-                break;
+                todo!("Handle me!");
             }
         }
     }
