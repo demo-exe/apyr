@@ -9,6 +9,7 @@ license = "MIT"
 readme = "README.md"
 keywords = ["log", "browser", "tui", "terminal", "console"]
 categories = ["development-tools", "command-line-utilities"]
+exclude = ["docs/design/*"]
 
 [profile.release]
 strip = true
