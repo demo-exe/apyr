@@ -64,7 +64,7 @@ fn process_event(app: &Arc<App>, ui: &mut UIState) -> Result<()> {
                 if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
                     app.should_quit.store(true, Ordering::Relaxed);
                 } else {
-                    state::process_key_event(key, &app, ui);
+                    state::process_key_event(key, app, ui);
                 }
             }
         }

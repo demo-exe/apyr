@@ -137,7 +137,7 @@ fn render_log_text<'a>(
     // let log_lines = &app.log_lines.read().unwrap();
     let re = app.re.read().unwrap();
 
-    let text_lines = cut_text_window(&log_lines, &rect, &ui.log_offset);
+    let text_lines = cut_text_window(log_lines, &rect, &ui.log_offset);
 
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
@@ -186,7 +186,7 @@ fn ensure_matches_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
 fn render_matches_text<'a>(
     app: &App,
     ui: &mut UIState,
-    log_lines: &'a Vec<String>,
+    log_lines: &'a [String],
     rect: Rect,
 ) -> Text<'a> {
     // TODO: this whole fn probably should be refactored

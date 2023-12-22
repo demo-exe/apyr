@@ -24,7 +24,7 @@ pub fn worker_thread(app_handle: Arc<App>, channel: channel::Receiver<(usize, us
             }
         }
 
-        if matches.len() != 0 {
+        if !matches.is_empty() {
             let mut app_matches = app_handle.matches.lock().unwrap();
             app_matches.append(&mut matches);
         }

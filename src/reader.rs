@@ -1,6 +1,5 @@
 use std::{
-    fs::File,
-    io::{self, Read},
+    io,
     sync::{atomic::Ordering, Arc},
 };
 
@@ -8,18 +7,18 @@ use crossterm::tty::IsTty;
 
 use crate::state::App;
 
-pub fn read_file() -> Vec<String> {
-    let mut file = File::open("src/main.rs").unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-
-    let mut lines = Vec::new();
-    for line in contents.lines() {
-        lines.push(line.to_string());
-    }
-
-    lines
-}
+// pub fn read_file() -> Vec<String> {
+//     let mut file = File::open("src/main.rs").unwrap();
+//     let mut contents = String::new();
+//     file.read_to_string(&mut contents).unwrap();
+//
+//     let mut lines = Vec::new();
+//     for line in contents.lines() {
+//         lines.push(line.to_string());
+//     }
+//
+//     lines
+// }
 
 #[inline(always)]
 pub fn push_line(app: &Arc<App>, line: String, line_count: usize) {
