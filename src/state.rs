@@ -32,6 +32,22 @@ pub struct SharedState {
     pub regex_channel: channel::Sender<(usize, usize)>,
 }
 
+impl SharedState {
+    pub fn new(regex_channel: channel::Sender<(usize, usize)>) -> Self {
+        SharedState {
+            should_quit: AtomicBool::new(false),
+
+            log_lines: RwLock::new(Vec::with_capacity(1024)),
+
+            re: RwLock::new(None),
+
+            matches: Mutex::new(Vec::new()),
+
+            regex_channel,
+        }
+    }
+}
+
 // Owned by the UI thread and not shared
 pub struct UIState {
     pub log_offset: Point,
@@ -67,28 +83,12 @@ impl Default for UIState {
     }
 }
 
-impl SharedState {
-    pub fn new(regex_channel: channel::Sender<(usize, usize)>) -> Self {
-        SharedState {
-            should_quit: AtomicBool::new(false),
-
-            log_lines: RwLock::new(Vec::with_capacity(1024)),
-
-            re: RwLock::new(None),
-
-            matches: Mutex::new(Vec::new()),
-
-            regex_channel,
-        }
-    }
-}
-
 fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     // TODO: this will probably not work in some race conditions (channel not empty)
     let mut matches = app.matches.lock().unwrap();
     matches.clear();
     ui.matches_selected = None;
-    ui.matches_offset = Point::default();
+    ui.matches_offset.y = 0;
 
     if ui.search_query.len() < 3 {
         *app.re.write().unwrap() = None;
