@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use crossbeam::channel;
 
-use crate::state::App;
+use crate::state::SharedState;
 
-pub fn worker_thread(app_handle: Arc<App>, channel: channel::Receiver<(usize, usize)>) {
+pub fn worker_thread(app_handle: Arc<SharedState>, channel: channel::Receiver<(usize, usize)>) {
     loop {
         let range = channel.recv().unwrap();
 

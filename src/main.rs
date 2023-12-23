@@ -17,7 +17,7 @@ use ratatui::prelude::{CrosstermBackend, Terminal};
 use reader::reader_thread;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
-use state::{App, UIState};
+use state::{SharedState, UIState};
 
 mod reader;
 mod state;
@@ -57,7 +57,7 @@ pub fn initialize_panic_handler() {
 }
 
 // App update function
-fn process_event(app: &Arc<App>, ui: &mut UIState) -> Result<()> {
+fn process_event(app: &Arc<SharedState>, ui: &mut UIState) -> Result<()> {
     if event::poll(std::time::Duration::from_millis(16))? {
         if let Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Press {
@@ -81,7 +81,7 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
 
     let (sender, receiver) = channel::unbounded::<(usize, usize)>();
 
-    let app = Arc::new(App::new(sender));
+    let app = Arc::new(SharedState::new(sender));
     let app_handle = app.clone();
 
     // reader can be permamently blocked by stdin().read_line() so we don't join it

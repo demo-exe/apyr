@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::{prelude::*, widgets::*};
 use regex::Regex;
 
-use crate::state::{App, Panel, Point, UIState, VERSION};
+use crate::state::{SharedState, Panel, Point, UIState, VERSION};
 
 // TODO: refactor into 1 function somehow ? (unsure about lifetimes w/ generics)
 fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> Vec<&'a str> {
@@ -101,7 +101,7 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16
 
     Line::from(result)
 }
-fn ensure_log_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
+fn ensure_log_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
     let matches = app.matches.lock().unwrap();
     let log_lines = app.log_lines.read().unwrap();
     if ui.matches_should_locate && ui.matches_selected.is_some() {
@@ -126,7 +126,7 @@ fn ensure_log_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
 }
 
 fn render_log_text<'a>(
-    app: &App,
+    app: &SharedState,
     ui: &mut UIState,
     log_lines: &'a Vec<String>,
     rect: Rect,
@@ -153,7 +153,7 @@ fn render_log_text<'a>(
     Text::from(colored_lines)
 }
 
-fn ensure_matches_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
+fn ensure_matches_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
     if ui.matches_selected.is_none() {
         if ui.following {
             // TODO: probably not a place for it
@@ -184,7 +184,7 @@ fn ensure_matches_in_viewport(app: &App, ui: &mut UIState, rect: Rect) {
 }
 
 fn render_matches_text<'a>(
-    app: &App,
+    app: &SharedState,
     ui: &mut UIState,
     log_lines: &'a [String],
     rect: Rect,
@@ -214,7 +214,7 @@ fn render_matches_text<'a>(
     Text::from(colored_lines)
 }
 
-pub fn render_ui(app: &App, ui: &mut UIState, frame: &mut Frame) {
+pub fn render_ui(app: &SharedState, ui: &mut UIState, frame: &mut Frame) {
     // default colors TODO: extract to some config
     let highlight_style = Style::default().bold().fg(Color::White);
 

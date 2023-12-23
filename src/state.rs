@@ -18,19 +18,21 @@ pub enum Panel {
     Matches,
 }
 
-// App state
-pub struct App {
+// State shared between threads
+pub struct SharedState {
     pub should_quit: AtomicBool,
 
     pub log_lines: RwLock<Vec<String>>,
 
     pub re: RwLock<Option<Regex>>,
+
     // vec of line numbers
     pub matches: Mutex<Vec<usize>>,
 
     pub regex_channel: channel::Sender<(usize, usize)>,
 }
 
+// Owned by the UI thread and not shared
 pub struct UIState {
     pub log_offset: Point,
     pub log_max_width: usize,
@@ -65,9 +67,9 @@ impl Default for UIState {
     }
 }
 
-impl App {
+impl SharedState {
     pub fn new(regex_channel: channel::Sender<(usize, usize)>) -> Self {
-        App {
+        SharedState {
             should_quit: AtomicBool::new(false),
 
             log_lines: RwLock::new(Vec::with_capacity(1024)),
@@ -81,7 +83,7 @@ impl App {
     }
 }
 
-fn recompile_regex(app: &App, ui: &mut UIState) {
+fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     // TODO: this will probably not work in some race conditions (channel not empty)
     let mut matches = app.matches.lock().unwrap();
     matches.clear();
@@ -109,7 +111,7 @@ fn recompile_regex(app: &App, ui: &mut UIState) {
     }
 }
 
-fn add_matches_scroll(app: &App, ui: &mut UIState, value: isize) {
+fn add_matches_scroll(app: &SharedState, ui: &mut UIState, value: isize) {
     let matches = app.matches.lock().unwrap();
     if matches.is_empty() {
         return;
@@ -126,16 +128,16 @@ fn add_matches_scroll(app: &App, ui: &mut UIState, value: isize) {
     }
 }
 
-fn add_log_scroll(_app: &App, ui: &mut UIState, value: isize) {
+fn add_log_scroll(_app: &SharedState, ui: &mut UIState, value: isize) {
     ui.log_offset.y = ui.log_offset.y.saturating_add_signed(value);
 }
 
-fn add_horizontal_scroll(_app: &App, ui: &mut UIState, value: isize) {
+fn add_horizontal_scroll(_app: &SharedState, ui: &mut UIState, value: isize) {
     ui.log_offset.x = ui.log_offset.x.saturating_add_signed(value);
     ui.matches_offset.x = ui.log_offset.x;
 }
 
-pub fn process_key_event(key: KeyEvent, app: &App, ui: &mut UIState) {
+pub fn process_key_event(key: KeyEvent, app: &SharedState, ui: &mut UIState) {
     // common
     #[allow(clippy::single_match)]
     match key.code {

@@ -5,7 +5,7 @@ use std::{
 
 use crossterm::tty::IsTty;
 
-use crate::state::App;
+use crate::state::SharedState;
 
 // pub fn read_file() -> Vec<String> {
 //     let mut file = File::open("src/main.rs").unwrap();
@@ -21,7 +21,7 @@ use crate::state::App;
 // }
 
 #[inline(always)]
-pub fn push_line(app: &Arc<App>, line: String, line_count: usize) {
+pub fn push_line(app: &Arc<SharedState>, line: String, line_count: usize) {
     {
         let mut lock = app.log_lines.write().unwrap();
         lock.push(line);
@@ -31,7 +31,7 @@ pub fn push_line(app: &Arc<App>, line: String, line_count: usize) {
         .unwrap();
 }
 
-pub fn reader_thread(app: Arc<App>) {
+pub fn reader_thread(app: Arc<SharedState>) {
     let mut line_count: usize = 0;
     let stdin = io::stdin();
     if stdin.is_tty() {
