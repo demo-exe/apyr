@@ -5,7 +5,7 @@ use std::{
 
 use crossterm::tty::IsTty;
 
-use crate::state::SharedState;
+use crate::types::SharedState;
 
 // pub fn read_file() -> Vec<String> {
 //     let mut file = File::open("src/main.rs").unwrap();

@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::{prelude::*, widgets::*};
 use regex::Regex;
 
-use crate::state::{SharedState, Panel, Point, UIState, VERSION};
+use crate::types::{Panel, Point, SharedState, UIState, VERSION};
 
 // TODO: refactor into 1 function somehow ? (unsure about lifetimes w/ generics)
 fn cut_text_window<'a>(source: &'a Vec<String>, rect: &Rect, offset: &Point) -> Vec<&'a str> {

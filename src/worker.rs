@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crossbeam::channel;
 
-use crate::state::SharedState;
+use crate::types::SharedState;
 
 pub fn worker_thread(app_handle: Arc<SharedState>, channel: channel::Receiver<(usize, usize)>) {
     loop {

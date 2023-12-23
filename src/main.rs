@@ -17,10 +17,11 @@ use ratatui::prelude::{CrosstermBackend, Terminal};
 use reader::reader_thread;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
-use state::{SharedState, UIState};
+use types::{SharedState, UIState};
 
 mod reader;
 mod state;
+mod types;
 mod ui;
 mod worker;
 
