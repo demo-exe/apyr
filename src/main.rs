@@ -19,9 +19,9 @@ use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
 use types::{SharedState, UIState};
 
+mod control;
 mod logbuf;
 mod reader;
-mod state;
 mod types;
 mod ui;
 mod worker;
@@ -72,7 +72,7 @@ fn process_event(app: &Arc<SharedState>, ui: &mut UIState) -> Result<()> {
                 if key.modifiers == event::KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
                     app.should_quit.store(true, Ordering::Relaxed);
                 } else {
-                    state::process_key_event(key, app, ui);
+                    control::process_key_event(key, app, ui);
                 }
             }
         }
