@@ -16,7 +16,7 @@ pub fn worker_thread(app_handle: Arc<SharedState>, channel: channel::Receiver<(u
         let mut matches = Vec::new();
 
         if let Some(re) = re {
-            let log_lines = app_handle.log_lines.read().unwrap();
+            let log_lines = app_handle.logbuf.tmp_read();
             for i in range.0..range.1 {
                 if re.is_match(&log_lines[i]) {
                     matches.push(i);

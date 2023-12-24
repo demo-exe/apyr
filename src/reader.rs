@@ -23,8 +23,7 @@ use crate::types::SharedState;
 #[inline(always)]
 pub fn push_line(app: &Arc<SharedState>, line: String, line_count: usize) {
     {
-        let mut lock = app.log_lines.write().unwrap();
-        lock.push(line);
+        app.logbuf.write(line);
     }
     app.regex_channel
         .send((line_count, line_count + 1))

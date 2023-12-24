@@ -103,7 +103,7 @@ fn color_line<'a>(re: &Option<Regex>, line: &'a str, highlight: bool, width: u16
 }
 fn ensure_log_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
     let matches = app.matches.lock().unwrap();
-    let log_lines = app.log_lines.read().unwrap();
+    let log_lines = app.logbuf.tmp_read();
     if ui.matches_should_locate && ui.matches_selected.is_some() {
         let match_i = matches[ui.matches_selected.unwrap()];
 
@@ -233,7 +233,7 @@ pub fn render_ui(app: &SharedState, ui: &mut UIState, frame: &mut Frame) {
         Paragraph::new(render_log_text(
             app,
             ui,
-            &app.log_lines.read().unwrap(),
+            &app.logbuf.tmp_read(),
             log_block.inner(main_layout[0]),
         ))
         .block(log_block),
@@ -271,7 +271,7 @@ pub fn render_ui(app: &SharedState, ui: &mut UIState, frame: &mut Frame) {
         Paragraph::new(render_matches_text(
             app,
             ui,
-            &app.log_lines.read().unwrap(),
+            &app.logbuf.tmp_read(),
             matches_block.inner(sub_layout[1]),
         ))
         .block(matches_block),

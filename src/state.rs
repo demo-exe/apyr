@@ -21,12 +21,10 @@ fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     }
 
     {
-        let log_lines = app.log_lines.read().unwrap();
+        let log_lines = app.logbuf.tmp_read();
 
-        // chunks of 10
-        (0..log_lines.len()).step_by(10).for_each(|i| {
-            let last = std::cmp::min(i + 10, log_lines.len());
-            app.regex_channel.send((i, last)).unwrap();
+        (0..log_lines.len()).step_by(1).for_each(|i| {
+            app.regex_channel.send((i, i + 1)).unwrap();
         });
     }
 }

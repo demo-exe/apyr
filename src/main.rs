@@ -19,6 +19,7 @@ use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
 use types::{SharedState, UIState};
 
+mod logbuf;
 mod reader;
 mod state;
 mod types;
@@ -42,7 +43,7 @@ pub fn initialize_panic_handler() {
     use std::process::exit;
 
     std::panic::set_hook(Box::new(|panic_info| {
-        shutdown().unwrap();
+        let _ = shutdown();
         Settings::auto()
             .most_recent_first(false)
             .lineno_suffix(true)
@@ -57,7 +58,7 @@ pub fn initialize_panic_handler() {
 
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
-        shutdown().unwrap();
+        let _ = shutdown();
         original_hook(panic_info);
         exit(1);
     }));

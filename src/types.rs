@@ -3,6 +3,8 @@ use std::sync::{atomic::AtomicBool, Mutex, RwLock};
 use crossbeam::channel;
 use regex::Regex;
 
+use crate::logbuf::LogBuf;
+
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Default)]
@@ -21,7 +23,7 @@ pub enum Panel {
 pub struct SharedState {
     pub should_quit: AtomicBool,
 
-    pub log_lines: RwLock<Vec<String>>,
+    pub logbuf: LogBuf,
 
     pub re: RwLock<Option<Regex>>,
 
@@ -36,7 +38,7 @@ impl SharedState {
         SharedState {
             should_quit: AtomicBool::new(false),
 
-            log_lines: RwLock::new(Vec::with_capacity(1024)),
+            logbuf: LogBuf::new(),
 
             re: RwLock::new(None),
 
