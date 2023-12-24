@@ -39,21 +39,27 @@ fn shutdown() -> Result<()> {
 
 #[cfg(debug_assertions)]
 pub fn initialize_panic_handler() {
+    use std::process::exit;
+
     std::panic::set_hook(Box::new(|panic_info| {
         shutdown().unwrap();
         Settings::auto()
             .most_recent_first(false)
             .lineno_suffix(true)
             .create_panic_handler()(panic_info);
+        exit(1);
     }));
 }
 
 #[cfg(not(debug_assertions))]
 pub fn initialize_panic_handler() {
+    use std::process::exit;
+
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         shutdown().unwrap();
         original_hook(panic_info);
+        exit(1);
     }));
 }
 
