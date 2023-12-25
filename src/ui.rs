@@ -105,7 +105,7 @@ fn ensure_log_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
     let matches = app.matches.lock().unwrap();
     let log_lines = app.logbuf.tmp_read();
     if ui.matches_should_locate && ui.matches_selected.is_some() {
-        let match_i = matches[ui.matches_selected.unwrap()];
+        let match_i = matches[ui.matches_selected.unwrap()].lineno;
 
         if match_i < ((rect.height as usize) / 2) {
             ui.log_offset.y = 0;
@@ -143,7 +143,7 @@ fn render_log_text<'a>(
 
     for (i, line) in text_lines.iter().enumerate() {
         let highlight = if let Some(match_i) = ui.matches_selected {
-            matches[match_i] == ui.log_offset.y + i
+            matches[match_i].lineno == ui.log_offset.y + i
         } else {
             false
         };
@@ -198,7 +198,7 @@ fn render_matches_text<'a>(
         .lock()
         .unwrap()
         .iter()
-        .map(|i| &log_lines[*i][..])
+        .map(|i| &log_lines[(*i).lineno][..])
         .collect();
     let text_lines = cut_text_window2(matches, &rect, &ui.matches_offset);
 

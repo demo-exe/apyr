@@ -19,6 +19,11 @@ pub enum Panel {
     Matches,
 }
 
+pub struct Match {
+    pub lineno: usize,
+    pub version: usize,
+}
+
 // State shared between threads
 pub struct SharedState {
     pub should_quit: AtomicBool,
@@ -28,13 +33,19 @@ pub struct SharedState {
     pub search: RwLock<SearchCriteria>,
 
     // vec of line numbers
-    pub matches: Mutex<Vec<usize>>,
+    pub matches: Mutex<Vec<Match>>,
 
     pub regex_channel: channel::Sender<(usize, usize)>,
+    pub matches_channel_send: channel::Sender<Vec<Match>>,
+    pub matches_channel_recv: channel::Receiver<Vec<Match>>,
 }
 
 impl SharedState {
-    pub fn new(regex_channel: channel::Sender<(usize, usize)>) -> Self {
+    pub fn new(
+        regex_channel: channel::Sender<(usize, usize)>,
+        matches_channel_send: channel::Sender<Vec<Match>>,
+        matches_channel_recv: channel::Receiver<Vec<Match>>,
+    ) -> Self {
         SharedState {
             should_quit: AtomicBool::new(false),
 
@@ -48,6 +59,8 @@ impl SharedState {
             matches: Mutex::new(Vec::new()),
 
             regex_channel,
+            matches_channel_send,
+            matches_channel_recv,
         }
     }
 }

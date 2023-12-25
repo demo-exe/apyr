@@ -17,11 +17,13 @@ use ratatui::prelude::{CrosstermBackend, Terminal};
 use reader::reader_thread;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook::iterator::{Signals, SignalsInfo};
-use types::{SharedState, UIState};
+use sorter::sorter_thread;
+use types::{Match, SharedState, UIState};
 
 mod control;
 mod logbuf;
 mod reader;
+mod sorter;
 mod types;
 mod ui;
 mod worker;
@@ -87,9 +89,10 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
 
     let mut regex_threads = Vec::new();
 
-    let (sender, receiver) = channel::unbounded::<(usize, usize)>();
+    let (re_send, re_recv) = channel::unbounded::<(usize, usize)>();
+    let (match_send, match_recv) = channel::unbounded::<Vec<Match>>();
 
-    let app = Arc::new(SharedState::new(sender));
+    let app = Arc::new(SharedState::new(re_send, match_send, match_recv));
     let app_handle = app.clone();
 
     // reader can be permamently blocked by stdin().read_line() so we don't join it
@@ -98,9 +101,15 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
         .spawn(move || reader_thread(app_handle))
         .unwrap();
 
+    let app_handle = app.clone();
+    thread::Builder::new()
+        .name("sorter".to_string())
+        .spawn(move || sorter_thread(app_handle))
+        .unwrap();
+
     for i in 0..1 {
         let app_handle = app.clone();
-        let receiver_handle = receiver.clone();
+        let receiver_handle = re_recv.clone();
         let thread = thread::Builder::new()
             .name(format!("worker-{}", i))
             .spawn(move || worker::worker_thread(app_handle, receiver_handle));

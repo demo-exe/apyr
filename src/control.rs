@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use regex::Regex;
 
-use crate::types::{Panel, SearchCriteria, SharedState, UIState};
+use crate::types::{Panel, SharedState, UIState};
 
 fn update_search(app: &SharedState, re: Option<Regex>) {
     let mut search = app.search.write().unwrap();
