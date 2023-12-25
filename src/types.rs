@@ -25,7 +25,7 @@ pub struct SharedState {
 
     pub logbuf: LogBuf,
 
-    pub re: RwLock<Option<Regex>>,
+    pub search: RwLock<SearchCriteria>,
 
     // vec of line numbers
     pub matches: Mutex<Vec<usize>>,
@@ -40,7 +40,10 @@ impl SharedState {
 
             logbuf: LogBuf::new(),
 
-            re: RwLock::new(None),
+            search: RwLock::new(SearchCriteria {
+                re: None,
+                version: 0,
+            }),
 
             matches: Mutex::new(Vec::new()),
 
@@ -82,4 +85,12 @@ impl Default for UIState {
             following: true,
         }
     }
+}
+
+// TODO: maybe use arc_swap crate instead?
+// only one thread is writing to this
+#[derive(Clone)]
+pub struct SearchCriteria {
+    pub re: Option<Regex>,
+    pub version: usize,
 }

@@ -10,7 +10,7 @@ pub fn worker_thread(app_handle: Arc<SharedState>, channel: channel::Receiver<(u
 
         let re;
         {
-            re = app_handle.re.read().unwrap().clone();
+            re = app_handle.search.read().unwrap().re.clone();
         }
 
         let mut matches = Vec::new();

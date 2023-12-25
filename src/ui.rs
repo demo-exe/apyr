@@ -135,7 +135,7 @@ fn render_log_text<'a>(
 
     let matches = app.matches.lock().unwrap();
     // let log_lines = &app.log_lines.read().unwrap();
-    let re = app.re.read().unwrap();
+    let re = app.search.read().unwrap().re.clone();
 
     let text_lines = cut_text_window(log_lines, &rect, &ui.log_offset);
 
@@ -204,7 +204,7 @@ fn render_matches_text<'a>(
 
     let mut colored_lines: Vec<Line> = Vec::with_capacity(rect.height as usize);
 
-    let re = app.re.read().unwrap();
+    let re = app.search.read().unwrap().re.clone();
     for (i, line) in text_lines.iter().enumerate() {
         let highlight = (ui.selected_panel == Panel::Matches)
             && (ui.matches_selected == Some(i + ui.matches_offset.y));
@@ -248,7 +248,7 @@ pub fn render_ui(app: &SharedState, ui: &mut UIState, frame: &mut Frame) {
     let mut search_block = Block::default()
         .borders(Borders::TOP)
         .title(Title::from(" Search  ").alignment(Alignment::Center));
-    if app.re.read().unwrap().is_none() {
+    if app.search.read().unwrap().re.is_none() {
         search_block = search_block.style(Style::default().fg(Color::Red));
     }
     if ui.selected_panel == Panel::Search {

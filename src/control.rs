@@ -1,7 +1,13 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use regex::Regex;
 
-use crate::types::{Panel, SharedState, UIState};
+use crate::types::{Panel, SearchCriteria, SharedState, UIState};
+
+fn update_search(app: &SharedState, re: Option<Regex>) {
+    let mut search = app.search.write().unwrap();
+    search.re = re;
+    search.version += 1;
+}
 
 fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     // TODO: this will probably not work in some race conditions (channel not empty)
@@ -11,13 +17,13 @@ fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     ui.matches_offset.y = 0;
 
     if ui.search_query.len() < 3 {
-        *app.re.write().unwrap() = None;
+        update_search(app, None);
         return;
     }
 
     let re = Regex::new(&ui.search_query);
     if let Ok(re) = re {
-        *app.re.write().unwrap() = Some(re);
+        update_search(app, Some(re));
     }
 
     {
