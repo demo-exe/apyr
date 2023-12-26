@@ -168,6 +168,7 @@ fn ensure_matches_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
 
         if selected < ui.matches_offset.y {
             ui.matches_offset.y = selected;
+            // TODO: double check this
         } else if selected >= ui.matches_offset.y + rect.height as usize {
             ui.matches_offset.y = selected - (rect.height as usize) / 2 + 1;
         }
@@ -175,8 +176,8 @@ fn ensure_matches_in_viewport(app: &SharedState, ui: &mut UIState, rect: Rect) {
         if selected < ((rect.height as usize) / 2) {
             ui.matches_offset.y = 0;
         } else if selected >= matches.len() - rect.height as usize / 2 {
-            // TODO: sus -1 here
-            ui.matches_offset.y = matches.len() - (rect.height as usize - 1);
+            // TODO: sus -1 here, should be rewritten
+            ui.matches_offset.y = matches.len().saturating_sub(rect.height as usize - 1);
         } else {
             ui.matches_offset.y = selected - rect.height as usize / 2;
         }
