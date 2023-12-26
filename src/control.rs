@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use crossterm::event::{KeyCode, KeyEvent};
 use regex::Regex;
 
@@ -6,11 +8,13 @@ use crate::types::{Panel, SharedState, UIState};
 fn update_search(app: &SharedState, re: Option<Regex>) {
     let mut search = app.search.write().unwrap();
     search.re = re;
-    search.version += 1;
+    // TODO: do I need to hold the lock here?
+    app.search_version.fetch_add(1, Ordering::Relaxed);
 }
 
 fn recompile_regex(app: &SharedState, ui: &mut UIState) {
-    // TODO: this will probably not work in some race conditions (channel not empty)
+    // clear all matches, hold lock while updating search_version
+    // TODO: is this the best way to do this?
     let mut matches = app.matches.lock().unwrap();
     matches.clear();
     ui.matches_selected = None;
@@ -29,8 +33,9 @@ fn recompile_regex(app: &SharedState, ui: &mut UIState) {
     {
         let log_lines = app.logbuf.tmp_read();
 
-        (0..log_lines.len()).step_by(1).for_each(|i| {
-            app.regex_channel.send((i, i + 1)).unwrap();
+        (0..log_lines.len()).step_by(10).for_each(|i| {
+            let end = std::cmp::min(i + 10, log_lines.len());
+            app.regex_channel.send((i, end)).unwrap();
         });
     }
 }

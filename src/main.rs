@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::thread;
+use std::{cmp, thread};
 
 use anyhow::Result;
 
@@ -107,7 +107,11 @@ fn run(mut signals: SignalsInfo) -> Result<()> {
         .spawn(move || sorter_thread(app_handle))
         .unwrap();
 
-    for i in 0..1 {
+    // TODO: hmmm
+    let parallelism: usize = thread::available_parallelism().unwrap().into();
+    let workers_num = cmp::max(1, parallelism.saturating_sub(3));
+
+    for i in 0..workers_num {
         let app_handle = app.clone();
         let receiver_handle = re_recv.clone();
         let thread = thread::Builder::new()

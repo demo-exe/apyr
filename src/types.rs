@@ -1,4 +1,7 @@
-use std::sync::{atomic::AtomicBool, Mutex, RwLock};
+use std::sync::{
+    atomic::{AtomicBool, AtomicUsize},
+    Mutex, RwLock,
+};
 
 use crossbeam::channel;
 use regex::Regex;
@@ -19,6 +22,7 @@ pub enum Panel {
     Matches,
 }
 
+#[derive(Clone)]
 pub struct Match {
     pub lineno: usize,
     pub version: usize,
@@ -31,6 +35,7 @@ pub struct SharedState {
     pub logbuf: LogBuf,
 
     pub search: RwLock<SearchCriteria>,
+    pub search_version: AtomicUsize,
 
     // vec of line numbers
     pub matches: Mutex<Vec<Match>>,
@@ -51,10 +56,8 @@ impl SharedState {
 
             logbuf: LogBuf::new(),
 
-            search: RwLock::new(SearchCriteria {
-                re: None,
-                version: 0,
-            }),
+            search: RwLock::new(SearchCriteria { re: None }),
+            search_version: AtomicUsize::new(0),
 
             matches: Mutex::new(Vec::new()),
 
@@ -105,5 +108,4 @@ impl Default for UIState {
 #[derive(Clone)]
 pub struct SearchCriteria {
     pub re: Option<Regex>,
-    pub version: usize,
 }
